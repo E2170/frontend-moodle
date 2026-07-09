@@ -1,0 +1,725 @@
+import { useEffect, useState, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import akuzemLogo from "./assets/akuzem-lg.png";
+import Header from "./Header";
+import TeacherActivityViewer from "./TeacherActivityViewer";
+
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+const moodlePost = async (token, wsfunction, extraParams = {}) => {
+  const params = new URLSearchParams({ wstoken: token, wsfunction, moodlewsrestformat: "json" });
+  for (const [key, value] of Object.entries(extraParams)) params.append(key, String(value));
+  const res = await fetch("/api/webservice/rest/server.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  return res.json();
+};
+
+// ─────────────────────────────────────────────
+// Aktivite Ekleme — Arka Planda Parametre Çekme (Native UI)
+// ─────────────────────────────────────────────
+function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSaved }) {
+  const [form, setForm] = useState({ 
+    name: "", 
+    intro: "", 
+    externalurl: "",
+    // Assign fields
+    allowsubmissionsfromdate: "",
+    duedate: "",
+    maxfiles: "5",
+    maxsizebytes: "10485760", // 10MB
+    // Quiz fields
+    timelimit: "60",
+    attempts: "1",
+    timeopen: "",
+    timeclose: ""
+  });
+  
+  const [activeTab, setActiveTab] = useState("İÇERİK");
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async () => {
+    if (!form.name.trim()) { setError("Lütfen bir aktivite adı girin."); return; }
+    if (actType.id === "url" && !form.externalurl.trim()) { setError("Lütfen bir URL adresi girin."); return; }
+    
+    setSubmitting(true);
+    setError(null);
+    try {
+      const toUnix = (str) => {
+        if (!str) return 0;
+        return Math.floor(new Date(str).getTime() / 1000);
+      };
+
+      const payload = {
+        courseid: courseId,
+        section: sectionNum,
+        type: actType.id, // assign, quiz, url vb.
+        name: form.name,
+        description: form.intro || "",
+        // Tüm aktiviteler için varsayılan olarak (0) integer gönderilir:
+        duedate: toUnix(form.duedate),
+        timeopen: toUnix(form.timeopen || form.allowsubmissionsfromdate),
+        timeclose: toUnix(form.timeclose),
+        maxbytes: parseInt(form.maxsizebytes || form.maxbytes, 10) || 0,
+        maxfiles: parseInt(form.maxfiles, 10) || 0,
+      };
+
+      if (actType.id === "url") {
+        payload.externalurl = form.externalurl || "";
+      }
+
+      // API isteği
+      const res = await moodlePost(token, "local_vueapi_add_activity", payload);
+
+      if (res && res.exception) {
+        throw new Error(res.message || "API hatası: İstisna fırlatıldı.");
+      }
+
+      if (res && res.status === "success") {
+        if (onSaved) onSaved(res.cmid || res.activityid);
+        onClose();
+      } else {
+        throw new Error("Sunucudan geçerli bir onay alınamadı. Yanıtı kontrol edin.");
+      }
+
+    } catch (e) {
+      setError("Kaydedilirken hata oluştu: " + e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col overflow-hidden">
+        
+        {/* Header - Akuzem Tarzı */}
+        <div className="bg-[#1e293b] px-6 py-4 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 text-white">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-lg">
+              {actType.emoji}
+            </div>
+            <div>
+              <div className="font-bold text-sm tracking-wide">{actType.label} Aktivitesi Ekle</div>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white flex flex-col items-center gap-1 transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            <span className="text-[10px] font-bold uppercase tracking-wider">Kapat</span>
+          </button>
+        </div>
+
+        {/* Sekmeler */}
+        <div className="flex px-6 border-b border-gray-200 shrink-0 bg-gray-50/50">
+          {["İÇERİK", "AYARLAR"].map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`py-3 px-6 text-xs font-bold tracking-wider transition-colors border-b-2 ${
+                activeTab === tab ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}>
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {/* İçerik Gövdesi */}
+        <div className="flex-1 overflow-y-auto p-6 bg-white relative">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500">
+              <div className="w-10 h-10 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
+              <div className="text-sm font-semibold">Ayarlar Moodle'dan alınıyor...</div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-sm font-medium flex items-center gap-3">
+                  <span className="text-xl">⚠️</span> {error}
+                </div>
+              )}
+
+              {activeTab === "İÇERİK" && (
+                <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Aktivite İsmi *</label>
+                    <p className="text-[11px] text-gray-400 mb-2">Aktivite listeleme sayfalarında ve Not Defterinde yazdığınız şekli ile görünecektir.</p>
+                    <input type="text" name="name" value={form.name} onChange={handleChange}
+                      className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 ring-blue-50 transition-all"
+                      placeholder="Örn: Vize Sınavı" />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Eğitmen Notu (Açıklama)</label>
+                    <textarea name="intro" rows={4} value={form.intro} onChange={handleChange}
+                      className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 ring-blue-50 transition-all resize-none"
+                      placeholder="Öğrencilerin göreceği açıklama veya yönerge metni..." />
+                  </div>
+
+                  {actType.id === "url" && (
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">URL Adresi *</label>
+                      <input type="url" name="externalurl" value={form.externalurl} onChange={handleChange}
+                        className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 ring-blue-50 transition-all"
+                        placeholder="https://..." />
+                    </div>
+                  )}
+                  
+                  {actType.id === "resource" && (
+                    <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl text-sm text-orange-800">
+                      <strong className="block mb-1 font-bold">⚠️ Dosya Yükleme Sınırı</strong>
+                      Native arayüz üzerinden direkt dosya yüklemesi teknik kısıtlamalar nedeniyle kapalıdır. 
+                      Sadece aktiviteyi oluşturup, dosyayı sonradan Moodle üzerinden yükleyebilirsiniz.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "AYARLAR" && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                  {actType.id === "assign" ? (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Aktivite Başlangıç Tarihi</label>
+                          <input type="datetime-local" name="allowsubmissionsfromdate" value={form.allowsubmissionsfromdate} onChange={handleChange}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Son Teslim Tarihi</label>
+                          <input type="datetime-local" name="duedate" value={form.duedate} onChange={handleChange}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
+                        </div>
+                      </div>
+                      
+                      <div className="border-t border-gray-100 pt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Dosya Yükleme Hakkı</label>
+                          <select name="maxfiles" value={form.maxfiles} onChange={handleChange}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500">
+                            {[1, 2, 3, 5, 10, 20].map(n => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Maksimum Dosya Boyutu</label>
+                          <select name="maxsizebytes" value={form.maxsizebytes} onChange={handleChange}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500">
+                            <option value="1048576">1 MB</option>
+                            <option value="5242880">5 MB</option>
+                            <option value="10485760">10 MB</option>
+                            <option value="52428800">50 MB</option>
+                            <option value="104857600">100 MB</option>
+                          </select>
+                        </div>
+                      </div>
+                    </>
+                  ) : actType.id === "quiz" ? (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Sınavın Açılacağı Tarih</label>
+                          <input type="datetime-local" name="timeopen" value={form.timeopen} onChange={handleChange}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Sınavın Biteceği Tarih</label>
+                          <input type="datetime-local" name="timeclose" value={form.timeclose} onChange={handleChange}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
+                        </div>
+                      </div>
+
+                      <div className="border-t border-gray-100 pt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Sınav Süresi (Dakika)</label>
+                          <input type="number" name="timelimit" value={form.timelimit} onChange={handleChange} min="0"
+                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Tekrar Sayısı (Deneme)</label>
+                          <select name="attempts" value={form.attempts} onChange={handleChange}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500">
+                            <option value="0">Sınırsız</option>
+                            {[1, 2, 3, 5, 10].map(n => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-10 text-gray-400">
+                      <div className="text-4xl mb-3">⚙️</div>
+                      <p className="text-sm font-semibold">Bu aktivite türü için ek ayar bulunmuyor.</p>
+                      <p className="text-xs mt-1">Sadece İçerik sekmesindeki bilgileri doldurmanız yeterlidir.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {!loading && (
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between shrink-0">
+            <button onClick={onClose} className="px-6 py-2.5 text-sm font-bold text-gray-600 hover:text-gray-800 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              İptal
+            </button>
+            <button onClick={handleSubmit} disabled={submitting}
+              className="px-8 py-2.5 bg-[#1e293b] hover:bg-black text-white rounded-xl text-sm font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-slate-200">
+              {submitting
+                ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Yükleniyor...</>
+                : <>Devam et <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg></>}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+import { AlmsQuizActivityModal, AlmsSessionWizard } from "./AlmsQuizFlow";
+
+// ─────────────────────────────────────────────
+// ANA SAYFA
+// ─────────────────────────────────────────────
+export default function TeacherCoursePage() {
+  const { courseId } = useParams();
+  const navigate = useNavigate();
+
+  const [userInfo, setUserInfo] = useState({ fullname: "Yükleniyor...", userpictureurl: "" });
+  const [courseDetail, setCourseDetail] = useState({ fullname: "Ders Yükleniyor..." });
+  const [sections, setSections] = useState([]);
+  const [activeTab, setActiveTab] = useState("Ders İçeriği");
+  const [activeSectionId, setActiveSectionId] = useState(null);
+  const [selectedModuleForView, setSelectedModuleForView] = useState(null);
+
+  // Aktivite paneli
+  const [isActivityPanelOpen, setIsActivityPanelOpen] = useState(false);
+  const [activityFormModal, setActivityFormModal] = useState(null); // { actType, sectionNum }
+  const [almsQuizActivity, setAlmsQuizActivity] = useState(null); 
+  const [almsSessionWizard, setAlmsSessionWizard] = useState(null);
+
+  const handleSelectActivityType = (actType) => {
+    setIsActivityPanelOpen(false);
+    if (actType.id === "quiz") {
+      setAlmsQuizActivity({ sectionNum: activeSectionId });
+    } else {
+      setActivityFormModal({ actType, sectionNum: activeSectionId });
+    }
+  };
+
+  const fetchCourseData = useCallback(async () => {
+    const token = localStorage.getItem("moodle_token");
+    if (!token) { navigate("/"); return; }
+    try {
+      const [userRes, sectionsRes] = await Promise.all([
+        fetch(`/api/webservice/rest/server.php`, {
+          method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `wstoken=${token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json`,
+        }),
+        fetch(`/api/webservice/rest/server.php`, {
+          method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `wstoken=${token}&wsfunction=core_course_get_contents&courseid=${courseId}&moodlewsrestformat=json`,
+        }),
+      ]);
+      const userData = await userRes.json();
+      const sectionsData = await sectionsRes.json();
+
+      if (userData?.fullname) setUserInfo(userData);
+      if (Array.isArray(sectionsData)) {
+        setSections(sectionsData);
+        if (sectionsData.length > 0) {
+          setCourseDetail({ fullname: sectionsData[0].coursedisplayname || "DERS İÇERİĞİ" });
+          setActiveSectionId(prev => prev || sectionsData[0].id);
+        }
+      }
+    } catch (err) { console.error(err); }
+  }, [courseId, navigate]);
+
+  useEffect(() => { fetchCourseData(); }, [fetchCourseData]);
+
+  // Moodle aktivite türü → bizim UI'ımız + Moodle'ın add parametresi
+  const activityTypes = [
+    { id: "forum",         moodleId: "forum",          label: "Forum",        iconColor: "#4a90e2", emoji: "💬", desc: "Tartışma ortamı oluşturun." },
+    { id: "assign",        moodleId: "assign",          label: "Ödev",         iconColor: "#9b59b6", emoji: "📝", desc: "Öğrencilerden görev isteyin." },
+    { id: "quiz",          moodleId: "quiz",            label: "Sınav",        iconColor: "#003399", emoji: "📋", desc: "Çevrimiçi test oluşturun." },
+    { id: "resource",      moodleId: "resource",        label: "Doküman",      iconColor: "#f39c12", emoji: "📄", desc: "PDF, DOC dosya yükleyin." },
+    { id: "url",           moodleId: "url",             label: "Link",         iconColor: "#00bcd4", emoji: "🔗", desc: "Dış kaynak URL paylaşın." },
+    { id: "page",          moodleId: "page",            label: "Sayfa",        iconColor: "#27ae60", emoji: "📃", desc: "Zengin metin sayfası ekleyin." },
+    { id: "label",         moodleId: "label",           label: "Etiket",       iconColor: "#95a5a6", emoji: "🏷️", desc: "Bölüme açıklama/başlık ekleyin." },
+    { id: "folder",        moodleId: "folder",          label: "Klasör",       iconColor: "#e67e22", emoji: "📁", desc: "Dosyaları klasörde toplayın." },
+    { id: "choice",        moodleId: "choice",          label: "Seçim",        iconColor: "#1abc9c", emoji: "✅", desc: "Anket/oylama oluşturun." },
+    { id: "feedback",      moodleId: "feedback",        label: "Geri Bildirim",iconColor: "#e74c3c", emoji: "📊", desc: "Geri bildirim formu ekleyin." },
+    { id: "glossary",      moodleId: "glossary",        label: "Sözlük",       iconColor: "#f39c12", emoji: "📚", desc: "Terimler sözlüğü oluşturun." },
+    { id: "book",          moodleId: "book",            label: "Kitap",        iconColor: "#e74c3c", emoji: "📕", desc: "Bölümlü içerik kitabı ekleyin." },
+    { id: "scorm",         moodleId: "scorm",           label: "SCORM",        iconColor: "#6c5ce7", emoji: "📦", desc: "SCORM paketi yükleyin." },
+    { id: "bigbluebutton", moodleId: "bigbluebuttonbn", label: "Canlı Ders",   iconColor: "#27ae60", emoji: "📹", desc: "Canlı sanal sınıf başlatın." },
+    { id: "lesson",        moodleId: "lesson",          label: "Ders",         iconColor: "#8e44ad", emoji: "🎓", desc: "İnteraktif ders materyali." },
+    { id: "wiki",          moodleId: "wiki",            label: "Wiki",         iconColor: "#2ecc71", emoji: "📖", desc: "İşbirlikçi wiki sayfası." },
+    { id: "survey",        moodleId: "survey",          label: "Anket",        iconColor: "#d35400", emoji: "📋", desc: "Standart anket uygulayın." },
+    { id: "workshop",      moodleId: "workshop",        label: "Atölye",       iconColor: "#c0392b", emoji: "🔨", desc: "Akran değerlendirmesi." },
+    { id: "h5pactivity",   moodleId: "h5pactivity",     label: "H5P",          iconColor: "#0099cc", emoji: "🎮", desc: "İnteraktif H5P içeriği." },
+  ];
+
+  const getSectionNum = () => {
+    if (!activeSection) return 0;
+    if (activeSection.section !== undefined) return activeSection.section;
+    const parsed = parseInt(activeSectionId?.toString().replace("default-", ""), 10);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const defaultWeeks = Array.from({ length: 16 }, (_, i) => ({ id: `default-${i}`, name: `HAFTA ${i + 1}`, modules: [] }));
+  const displaySections = sections.length > 0 ? sections : defaultWeeks;
+  const activeSection = displaySections.find(s => s.id === activeSectionId) || displaySections[0];
+
+  const modMeta = {
+    assign:         { icon: "📝", color: "bg-purple-50 text-purple-700 border-purple-100" },
+    quiz:           { icon: "📋", color: "bg-blue-50 text-blue-700 border-blue-100" },
+    resource:       { icon: "📄", color: "bg-orange-50 text-orange-700 border-orange-100" },
+    url:            { icon: "🔗", color: "bg-cyan-50 text-cyan-700 border-cyan-100" },
+    page:           { icon: "📃", color: "bg-green-50 text-green-700 border-green-100" },
+    forum:          { icon: "💬", color: "bg-pink-50 text-pink-700 border-pink-100" },
+    folder:         { icon: "📁", color: "bg-yellow-50 text-yellow-700 border-yellow-100" },
+    label:          { icon: "🏷️", color: "bg-gray-50 text-gray-600 border-gray-100" },
+    book:           { icon: "📕", color: "bg-rose-50 text-rose-700 border-rose-100" },
+    wiki:           { icon: "📖", color: "bg-lime-50 text-lime-700 border-lime-100" },
+    glossary:       { icon: "📚", color: "bg-amber-50 text-amber-700 border-amber-100" },
+    scorm:          { icon: "📦", color: "bg-indigo-50 text-indigo-700 border-indigo-100" },
+    choice:         { icon: "✅", color: "bg-teal-50 text-teal-700 border-teal-100" },
+    feedback:       { icon: "📊", color: "bg-red-50 text-red-700 border-red-100" },
+    bigbluebuttonbn:{ icon: "📹", color: "bg-emerald-50 text-emerald-700 border-emerald-100" },
+    lesson:         { icon: "🎓", color: "bg-violet-50 text-violet-700 border-violet-100" },
+    survey:         { icon: "📋", color: "bg-orange-50 text-orange-700 border-orange-100" },
+    workshop:       { icon: "🔨", color: "bg-red-50 text-red-700 border-red-100" },
+    h5pactivity:    { icon: "🎮", color: "bg-sky-50 text-sky-700 border-sky-100" },
+  };
+
+  const token = localStorage.getItem("moodle_token");
+
+  const handleDeleteActivity = async (mod) => {
+    if (!window.confirm(`'${mod.name}' isimli aktiviteyi silmek istediğinize emin misiniz?`)) return;
+
+    try {
+      // API üzerinden (token tabanlı) core_course_delete_modules servisi yetki hatası (Erişim kontrolü istisnası) 
+      // veriyorsa, yetki problemini bypass etmek için web tarayıcısı oturumunu (ajax) kullanıyoruz.
+      const privateToken = localStorage.getItem("moodle_privatetoken") || "";
+      
+      // 1. Autologin URL tetiklenerek MoodleSession cookie'si alınır
+      if (privateToken) {
+        const autologinRes = await moodlePost(token, "tool_mobile_get_autologin_key", { privatetoken: privateToken });
+        if (autologinRes?.autologinurl) {
+          const parsed = new URL(autologinRes.autologinurl);
+          await fetch(`/api${parsed.pathname}${parsed.search}`); 
+        }
+      }
+
+      // 2. Moodle anasayfasına gidilerek güncel "sesskey" değeri HTML içinden çekilir
+      const myPageRes = await fetch("/api/my/");
+      const myPageHtml = await myPageRes.text();
+      const sesskeyMatch = myPageHtml.match(/"sesskey":"([^"]+)"/);
+      
+      if (!sesskeyMatch) throw new Error("Oturum anahtarı (sesskey) alınamadı. Lütfen tekrar giriş yapın.");
+      const sesskey = sesskeyMatch[1];
+
+      // 3. Web arayüzünün kullandığı AJAX servisine (core_course_edit_module) istek atılarak aktivite silinir
+      const payload = [{
+        index: 0,
+        methodname: "core_course_edit_module",
+        args: { id: mod.id, action: "delete", sectionreturn: 0 }
+      }];
+
+      const deleteRes = await fetch(`/api/lib/ajax/service.php?sesskey=${sesskey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const deleteData = await deleteRes.json();
+      if (deleteData[0] && deleteData[0].error) {
+        throw new Error(deleteData[0].exception?.message || "Silme başarısız.");
+      }
+
+      alert("Aktivite başarıyla silindi.");
+      fetchCourseData(); // Sayfayı yenile
+    } catch (e) {
+      alert("Hata: " + e.message);
+    }
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-[#f4f6f9] font-sans text-gray-800 overflow-hidden">
+      <Header />
+
+      {/* Üst Bar */}
+      <div className="bg-white border-b border-gray-200 h-12 flex items-center px-6 shrink-0 z-30 shadow-sm">
+        <div className="flex items-center w-1/3 gap-2">
+          <span className="text-blue-600 font-black text-[10px] border border-blue-200 bg-blue-50 px-1 py-0.5 rounded tracking-tighter">C&gt;O</span>
+          <span className="font-bold text-xs text-gray-700 uppercase truncate max-w-[220px]">{courseDetail.fullname}</span>
+          <button onClick={() => setIsActivityPanelOpen(true)}
+            className="ml-2 w-6 h-6 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded text-white font-bold text-lg leading-none transition-colors"
+            title="Aktivite Ekle">
+            +
+          </button>
+        </div>
+        <div className="flex-1 flex justify-center h-full">
+          <div className="flex gap-8 text-xs font-bold text-gray-500 h-full">
+            {["Ders İçeriği", "Duyurular", "Tartışma"].map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className={`h-full border-b-2 transition-colors ${activeTab === tab ? "border-blue-600 text-blue-800" : "border-transparent hover:text-gray-800"}`}>
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="w-1/3 flex justify-end">
+          <button onClick={fetchCourseData}
+            className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold px-4 py-1.5 rounded transition-colors">
+            Yenile
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sol Panel — Hafta listesi */}
+        <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
+          <div className="p-3 text-xs font-bold text-gray-700 border-b border-gray-100 bg-gray-50">Ders Programı</div>
+          <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+            {displaySections.map(sec => (
+              <div key={sec.id}
+                onClick={() => { setActiveSectionId(sec.id); setSelectedModuleForView(null); }}
+                className={`p-3 flex items-center justify-between cursor-pointer border-l-4 transition-colors ${activeSectionId === sec.id ? "bg-blue-50 border-blue-600" : "hover:bg-gray-50 border-transparent"}`}>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${activeSectionId === sec.id ? "text-blue-600" : "text-gray-300"}`}>📁</span>
+                  <div className={`text-[11px] font-bold uppercase ${activeSectionId === sec.id ? "text-blue-800" : "text-gray-600"}`}>{sec.name}</div>
+                </div>
+                <div className={`w-5 h-5 rounded-full border flex items-center justify-center text-[9px] font-bold ${activeSectionId === sec.id ? "border-blue-300 bg-blue-100 text-blue-700" : "border-gray-200 text-gray-400"}`}>
+                  {sec.modules?.length || 0}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="p-3 bg-gray-50 border-t border-gray-200">
+            <div className="text-[10px] font-bold text-gray-500 mb-1">Ders Tamamlama</div>
+            <div className="h-1.5 bg-gray-200 rounded-full" />
+          </div>
+        </aside>
+
+        {/* Ana İçerik */}
+        <main className="flex-1 flex flex-col bg-[#f4f6f9] overflow-hidden">
+          <div className="p-4 flex justify-between items-center bg-white border-b border-gray-200 shrink-0">
+            <h2 className="text-sm font-extrabold text-gray-800 uppercase tracking-wide">
+              {selectedModuleForView ? selectedModuleForView.name : (activeSection?.name || "Bölüm Seçiniz")}
+            </h2>
+            <button onClick={() => setIsActivityPanelOpen(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors flex items-center gap-1">
+              + Aktivite Ekle
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6">
+            {selectedModuleForView ? (
+              <TeacherActivityViewer
+                mod={selectedModuleForView}
+                token={token}
+                courseId={courseId}
+                onBack={() => setSelectedModuleForView(null)}
+              />
+            ) : activeSection?.modules?.length > 0 ? (
+              <div className="space-y-3 max-w-4xl mx-auto w-full">
+                {activeSection.modules.map(mod => {
+                  const meta = modMeta[mod.modname] || { icon: "📌", color: "bg-gray-50 text-gray-600 border-gray-100" };
+                  return (
+                    <div key={mod.id}
+                      onClick={() => setSelectedModuleForView(mod)}
+                      className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between hover:shadow-md transition-all cursor-pointer group">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg border ${meta.color}`}>
+                          {meta.icon}
+                        </div>
+                        <div>
+                          <span className="font-bold text-sm text-gray-800 block">{mod.name}</span>
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{mod.modname}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {mod.modname === "quiz" && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate("/teacher-question-bank");
+                            }}
+                            className="text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg shadow-sm"
+                            title="Soru Bankasına Git"
+                          >
+                            Soru Bankasına Git
+                          </button>
+                        )}
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteActivity(mod);
+                          }}
+                          className="text-[10px] font-bold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg shadow-sm"
+                          title="Aktiviteyi Sil"
+                        >
+                          🗑 Sil
+                        </button>
+                        <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg ml-2">
+                          Görüntüle →
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center text-4xl mb-5">📭</div>
+                <h2 className="text-sm font-bold text-gray-600 mb-3">Henüz bu haftaya aktivite eklenmemiş.</h2>
+                <button onClick={() => setIsActivityPanelOpen(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-6 py-2.5 rounded-xl transition-colors">
+                  + Aktivite Ekle
+                </button>
+              </div>
+            )}
+          </div>
+        </main>
+
+        {/* Sağ Panel */}
+        <aside className="w-72 bg-white border-l border-gray-200 p-4 flex flex-col gap-4 shrink-0 overflow-y-auto">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-col items-center text-center">
+            <div className="w-14 h-14 bg-gray-100 border border-gray-200 rounded-full flex items-center justify-center text-gray-400 text-2xl mb-3">👤</div>
+            <div className="text-xs font-bold text-gray-800 uppercase tracking-wide mb-3">{userInfo.fullname}</div>
+            <button className="w-full bg-gray-800 hover:bg-black text-white text-xs font-bold py-2 rounded-lg transition-colors">
+              ✉ Mesaj Gönder
+            </button>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-xs font-bold text-gray-700">Duyurular</h3>
+              <span className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500 border">0</span>
+            </div>
+            <p className="text-[11px] text-gray-400 text-center py-2">Henüz duyuru bulunmamaktadır.</p>
+          </div>
+        </aside>
+      </div>
+
+      {/* ── Aktivite Seçim Paneli (sağdan açılır) ── */}
+      {isActivityPanelOpen && !activityFormModal && (
+        <div className="fixed inset-0 z-50 bg-black/30 flex justify-end" onClick={() => setIsActivityPanelOpen(false)}>
+          <div className="w-[560px] bg-white h-full shadow-2xl flex flex-col border-l border-gray-200" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="h-14 px-6 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
+              <div>
+                <h2 className="text-[15px] font-bold text-gray-800">Aktivite Ekle</h2>
+                <p className="text-[11px] text-gray-400">Eklemek istediğiniz türü seçin</p>
+              </div>
+              <button onClick={() => setIsActivityPanelOpen(false)} className="text-gray-400 hover:text-gray-700 text-xl font-bold w-8 h-8 flex items-center justify-center">✕</button>
+            </div>
+
+            {/* Aktivite listesi */}
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="grid grid-cols-2 gap-3">
+                {activityTypes.map(act => (
+                  <button key={act.id}
+                    onClick={() => handleSelectActivityType(act)}
+                    className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:border-gray-300 hover:shadow-md transition-all text-left group">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 transition-transform group-hover:scale-110"
+                      style={{ backgroundColor: act.iconColor + "22" }}>
+                      {act.emoji}
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-gray-700">{act.label}</div>
+                      <div className="text-[11px] text-gray-400 leading-tight">{act.desc}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Moodle Form — Tam Ekran, Uygulama İçi ── */}
+      {activityFormModal && (
+        <ActivityFormModal
+          actType={activityFormModal.actType}
+          sectionNum={activityFormModal.sectionNum}
+          courseId={courseId}
+          token={token}
+          onClose={() => setActivityFormModal(null)}
+          onSaved={() => { setActivityFormModal(null); fetchCourseData(); }}
+        />
+      )}
+
+      {/* ── ALMS Sınav Oluşturma Akışı ── */}
+      {almsQuizActivity && (
+        <AlmsQuizActivityModal 
+           onClose={() => setAlmsQuizActivity(null)}
+           onOpenSession={(form) => {
+              setAlmsSessionWizard({ activityForm: form, sectionNum: almsQuizActivity.sectionNum });
+           }}
+           onSaveActivity={(form) => {
+              setAlmsSessionWizard({ activityForm: form, sectionNum: almsQuizActivity.sectionNum });
+           }}
+        />
+      )}
+
+      {almsSessionWizard && (
+        <AlmsSessionWizard 
+           initialName={almsSessionWizard.activityForm.name}
+           onClose={() => setAlmsSessionWizard(null)}
+           onComplete={async (sessionInfo, questions) => {
+              const { activityForm, sectionNum } = almsSessionWizard;
+              try {
+                const toUnix = (str) => {
+                  if (!str) return 0;
+                  return Math.floor(new Date(str).getTime() / 1000);
+                };
+
+                const payload = {
+                  courseid: courseId,
+                  section: sectionNum,
+                  type: "quiz",
+                  name: sessionInfo.name || activityForm.name || "Sınav",
+                  description: activityForm.intro || "",
+                  timeopen: toUnix(sessionInfo.start),
+                  timeclose: toUnix(sessionInfo.end),
+                  duedate: 0,
+                  maxbytes: 0,
+                  maxfiles: 0,
+                };
+
+                const res = await moodlePost(token, "local_vueapi_add_activity", payload);
+
+                if (res && res.exception) {
+                  throw new Error(res.message || "API hatası: İstisna fırlatıldı.");
+                }
+
+                if (res && res.status === "success") {
+                  alert(`'${sessionInfo.name}' oturumu ${questions.length} soru ile başarıyla oluşturuldu ve yayınlandı!`);
+                  setAlmsSessionWizard(null);
+                  setAlmsQuizActivity(null);
+                  fetchCourseData();
+                } else {
+                  throw new Error("Sunucudan geçerli bir onay alınamadı. Yanıtı kontrol edin.");
+                }
+              } catch (e) {
+                alert("Kaydedilirken hata oluştu: " + e.message);
+              }
+           }}
+        />
+      )}
+    </div>
+  );
+}

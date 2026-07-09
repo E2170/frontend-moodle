@@ -1,0 +1,211 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+export default function LoginPage() {
+  const navigate = useNavigate();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMsg("");
+
+    const params = new URLSearchParams({
+      username: username,
+      password: password,
+      service: "moodle_mobile_app",
+    });
+
+    try {
+      const response = await fetch(`/api/login/token.php`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params.toString(),
+      });
+
+      // Ham yanıtı oku
+      const rawText = await response.text();
+      console.log(`[Login] HTTP ${response.status} yanıtı:`, rawText.substring(0, 500));
+
+      if (!response.ok) {
+        throw new Error(`Sunucu hatası (HTTP ${response.status}). Moodle servisi geçici olarak kullanılamıyor olabilir.`);
+      }
+
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch (parseError) {
+        console.error("[Login] JSON parse hatası. Gelen yanıt:", rawText.substring(0, 500));
+        throw new Error(`Sunucu geçersiz bir yanıt döndürdü (HTTP ${response.status}). Lütfen daha sonra tekrar deneyin.`);
+      }
+
+      if (data.token) {
+        localStorage.setItem("moodle_token", data.token);
+        if (data.privatetoken) {
+          localStorage.setItem("moodle_privatetoken", data.privatetoken);
+        }
+
+        // Moodle web arayüzü çerezlerini (cookie) almak için arkaplanda Moodle'ın login sayfasını açıp formu otomatik dolduruyoruz.
+        // Bu sayede Moodle'ın istediği "logintoken" (CSRF) güvenliğini de aşmış oluyoruz.
+        const finishLogin = async () => {
+          try {
+            // Gerçek web oturumu almak için arkaplanda web login yap
+            try {
+              const loginPageRes = await fetch('/api/login/index.php');
+              const loginHtml = await loginPageRes.text();
+              const tokenMatch = loginHtml.match(/name="logintoken" value="([^"]+)"/);
+              if (tokenMatch) {
+                const logintoken = tokenMatch[1];
+                const params = new URLSearchParams({ username, password, logintoken });
+                await fetch('/api/login/index.php', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                  body: params.toString()
+                });
+                console.log("Arkaplan web girişi başarılı, gerçek oturum çerezi alındı.");
+              }
+            } catch (webLoginErr) {
+              console.error("Web girişi sırasında hata:", webLoginErr);
+            }
+
+            // 1. Kullanıcının temel site bilgilerini al (userid tespiti için)
+            const siteInfoRes = await fetch(
+              `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${data.token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json` },
+            );
+            const siteInfo = await siteInfoRes.json();
+
+            let isTeacher = false;
+
+            // Global yönetici kontrolü
+            if (siteInfo.userissiteadmin) {
+              isTeacher = true;
+            }
+            // Ders bazlı yetki kontrolü
+            else if (siteInfo.userid) {
+              const coursesRes = await fetch(
+                `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${data.token}&wsfunction=core_enrol_get_users_courses&userid=${siteInfo.userid}&moodlewsrestformat=json` },
+              );
+              const courses = await coursesRes.json();
+
+              if (Array.isArray(courses) && courses.length > 0) {
+                const firstCourseId = courses[0].id;
+                const calendarAccessRes = await fetch(
+                  `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${data.token}&wsfunction=core_calendar_get_calendar_access_information&courseid=${firstCourseId}&moodlewsrestformat=json` },
+                );
+                const calendarAccess = await calendarAccessRes.json();
+
+                if (calendarAccess && calendarAccess.canmanageentries === true) {
+                  isTeacher = true;
+                }
+              }
+            }
+
+            if (isTeacher) {
+              localStorage.setItem("user_role", "teacher");
+              navigate("/teacher-dashboard");
+            } else {
+              localStorage.setItem("user_role", "student");
+              navigate("/dashboard");
+            }
+          } catch (roleError) {
+            console.error("Rol analiz aşamasında sistem hatası:", roleError);
+            localStorage.setItem("user_role", "student");
+            navigate("/dashboard");
+          }
+        };
+
+        // Token API yeterli, iframe CSRF sorunu yarattığı için direkt devam ediyoruz
+        finishLogin();
+      } else if (data.error) {
+        setErrorMsg(data.error);
+      } else {
+        setErrorMsg(
+          "Sunucu doğrulama işlemi sırasında bilinmeyen bir hata oluştu.",
+        );
+      }
+    } catch (err) {
+      console.error("Giriş işlemi sırasında hata:", err);
+      setErrorMsg(
+        err.message || "Sunucu bağlantısı kurulamadı. Lütfen ağ yapılandırmanızı kontrol ediniz.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen bg-gray-50">
+      <div
+        className="hidden lg:flex lg:w-4/5 bg-cover bg-center relative"
+        style={{
+          backgroundImage:
+            "url('https://haber.aku.edu.tr/wp-content/uploads/sites/5/2025/01/09ocak2507.jpeg')",
+        }}
+      >
+        <div className="absolute inset-0 bg-black/20"></div>
+      </div>
+
+      <div className="w-full lg:w-2/5 flex items-center justify-center p-8 bg-white shadow-[-20px_0_40px_rgba(0,0,0,0.05)] z-10">
+        <div className="w-full max-w-md">
+          <div className="mb-8 text-center lg:text-left">
+            <h1 className="text-3xl font-extrabold text-blue-800 tracking-tight mb-2">
+              AKUZEM GİRİŞ
+            </h1>
+            <p className="text-sm text-gray-500">
+              Sisteme erişim sağlamak için kimlik bilgilerinizi giriniz.
+            </p>
+          </div>
+
+          {errorMsg && (
+            <div className="mb-4 p-3 text-sm text-red-700 bg-red-100 rounded-lg border border-red-200">
+              {errorMsg}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Kullanıcı adı
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                placeholder="Kullanıcı adınızı giriniz"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Şifre
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 bg-blue-700 text-white font-bold rounded-lg hover:bg-blue-800 transition-all disabled:opacity-70"
+            >
+              {loading ? "Sistem Sorgulanıyor..." : "Giriş yap"}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
