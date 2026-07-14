@@ -49,8 +49,8 @@ function TeacherAssignViewer({ mod, token, courseId }) {
   const [assignment, setAssignment] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [users, setUsers] = useState({});
-  const [loading, setLoading] = useState(true);
   const [gradingId, setGradingId] = useState(null); // grading modal için userid
+  const [loading, setLoading] = useState(false);
   const [gradeInput, setGradeInput] = useState("");
   const [feedbackInput, setFeedbackInput] = useState("");
   const [grading, setGrading] = useState(false);
@@ -221,21 +221,27 @@ function TeacherQuizViewer({ mod, token, courseId }) {
   const [quiz, setQuiz] = useState(null);
   const [users, setUsers] = useState([]);
   const [attemptsData, setAttemptsData] = useState({});
-  const [loading, setLoading] = useState(true);
   const [expandedUser, setExpandedUser] = useState(null);
   const [reviewData, setReviewData] = useState({});
   const [reviewLoading, setReviewLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const [quizSlots, setQuizSlots] = useState([]);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const [qr, ur] = await Promise.all([
+        const [qr, ur, slotsRes] = await Promise.all([
           moodlePost(token, "mod_quiz_get_quizzes_by_courses", { "courseids[0]": courseId }),
           moodlePost(token, "core_enrol_get_enrolled_users", { courseid: courseId }),
+          moodlePost(token, "local_vueapi_get_quiz_slots", { cmid: mod.id }).catch(() => null)
         ]);
         const found = qr.quizzes?.find(q => q.id === mod.instance || q.coursemodule === mod.id) || qr.quizzes?.[0];
         setQuiz(found);
+        if (Array.isArray(slotsRes)) {
+            setQuizSlots(slotsRes);
+        }
         if (Array.isArray(ur)) {
           setUsers(ur);
           const attemptsMap = {};
@@ -275,7 +281,13 @@ function TeacherQuizViewer({ mod, token, courseId }) {
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-        <h2 className="text-lg font-bold text-gray-800 mb-3">📋 {mod.name}</h2>
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-lg font-bold text-gray-800">📋 {mod.name}</h2>
+          <a href={`/mod/quiz/edit.php?cmid=${mod.id}`} target="_blank" rel="noreferrer" 
+             className="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors">
+            📝 Soruları İncele / Düzenle (Moodle)
+          </a>
+        </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-blue-50 rounded-xl p-3 text-center">
             <div className="text-xl font-black text-blue-700">{participated.length}</div>
@@ -289,6 +301,30 @@ function TeacherQuizViewer({ mod, token, courseId }) {
             <div className="text-xl font-black text-green-700">{avgGrade}</div>
             <div className="text-xs text-green-500 font-semibold">Ortalama</div>
           </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-4">
+        <div className="px-5 py-3 border-b border-gray-100 font-bold text-sm text-gray-700 bg-gray-50 flex justify-between items-center">
+            <span>📝 Sınava Eklenmiş Sorular ({quizSlots.length})</span>
+        </div>
+        <div className="divide-y divide-gray-50">
+            {quizSlots.length === 0 ? (
+                <div className="p-6 text-center text-sm text-gray-400 font-medium">
+                    Bu sınava henüz soru eklenmemiş. Soru Bankasından soru seçip aktarabilirsiniz.
+                </div>
+            ) : (
+                quizSlots.map((slot, idx) => (
+                    <div key={slot.id} className="p-4 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">Soru {slot.slot} ({slot.maxmark} Puan)</span>
+                            <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded uppercase">{slot.qtype}</span>
+                        </div>
+                        <div className="font-semibold text-sm text-gray-800 mb-1">{slot.name}</div>
+                        <div className="text-xs text-gray-600 mt-2 p-3 bg-white border border-gray-100 rounded-lg shadow-sm" dangerouslySetInnerHTML={{ __html: slot.questiontext }} />
+                    </div>
+                ))
+            )}
         </div>
       </div>
 
@@ -443,10 +479,10 @@ function TeacherUrlViewer({ mod }) {
 // ─────────────────────────────────────────────
 function TeacherForumViewer({ mod, token }) {
   const [discussions, setDiscussions] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
   const [posts, setPosts] = useState({});
   const [newSubject, setNewSubject] = useState("");
+  const [loading, setLoading] = useState(false);
   const [newMessage, setNewMessage] = useState("");
   const [posting, setPosting] = useState(false);
   const [postMsg, setPostMsg] = useState(null);
@@ -611,7 +647,7 @@ function TeacherForumViewer({ mod, token }) {
 function TeacherPageViewer({ mod, token, courseId }) {
   const [content, setContent] = useState(null);
   const [loading, setLoading] = useState(true);
-
+  
   useEffect(() => {
     moodlePost(token, "mod_page_get_pages_by_courses", { "courseids[0]": courseId })
       .then(r => { const p = r.pages?.find(p => p.coursemodule === mod.id); setContent(p?.content || null); })
@@ -653,6 +689,7 @@ function TeacherGenericViewer({ mod }) {
 // ANA BİLEŞEN
 // ─────────────────────────────────────────────
 export default function TeacherActivityViewer({ mod, token, courseId, onBack }) {
+  const [loading, setLoading] = useState(true);
   const renderViewer = () => {
     switch (mod.modname) {
       case "assign":   return <TeacherAssignViewer   mod={mod} token={token} courseId={courseId} />;

@@ -1,16 +1,15 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import Header from "./Header";
 
 export default function TeacherDashboard() {
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   const [courses, setCourses] = useState([]);
   const [timelineEvents, setTimelineEvents] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [conversations, setConversations] = useState([]);
-  const [loading, setLoading] = useState(true);
-
+  
   const fetchDashboardData = useCallback(async () => {
     const token = localStorage.getItem("moodle_token");
 
@@ -26,22 +25,21 @@ export default function TeacherDashboard() {
       const userData = await userResponse.json();
 
       if (userData && userData.userid) {
-        const coursesResponse = await fetch(
-          `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_enrol_get_users_courses&userid=${userData.userid}&moodlewsrestformat=json` },
-        );
-        const timelineResponse = await fetch(
-          `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_calendar_get_action_events_by_timesort&moodlewsrestformat=json` },
-        );
-        const announcementsResponse = await fetch(
-          `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=mod_forum_get_forum_discussions&forumid=2&moodlewsrestformat=json` },
-        );
-        const messagesResponse = await fetch(
-          `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_message_get_conversations&userid=${userData.userid}&moodlewsrestformat=json` },
-        );
+        const [
+          coursesResponse,
+          timelineResponse,
+          announcementsResponse,
+          messagesResponse
+        ] = await Promise.all([
+          fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_enrol_get_users_courses&userid=${userData.userid}&moodlewsrestformat=json` }),
+          fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_calendar_get_action_events_by_timesort&moodlewsrestformat=json` }),
+          fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=mod_forum_get_forum_discussions&forumid=2&moodlewsrestformat=json` }),
+          fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_message_get_conversations&userid=${userData.userid}&moodlewsrestformat=json` })
+        ]);
 
         const safeParse = async (res) => {
           if (!res.ok) return null;
-          try { return await res.json(); } catch (e) { return null; }
+          try { return await res.json(); } catch (_e) { return null; }
         };
 
         const coursesData = await safeParse(coursesResponse);
@@ -50,38 +48,7 @@ export default function TeacherDashboard() {
         const messagesData = await safeParse(messagesResponse);
 
           if (coursesData && Array.isArray(coursesData)) {
-            const coursesWithProgress = await Promise.all(
-              coursesData.map(async (course) => {
-                let progress = 0;
-                try {
-                  const progRes = await fetch(`/api/webservice/rest/server.php`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: `wstoken=${token}&wsfunction=core_completion_get_activities_completion_status&courseid=${course.id}&userid=${userData.userid}&moodlewsrestformat=json`
-                  });
-                  const progData = await progRes.json();
-                  if (progData && progData.statuses) {
-                    const trackable = progData.statuses.filter(s => s.hascompletion !== false && s.isautomatic !== undefined || s.tracking > 0 || s.modname === 'assign' || s.modname === 'quiz');
-                    if (trackable.length > 0) {
-                      const completed = trackable.filter(s => s.state === 1 || s.state === 2).length;
-                      progress = Math.round((completed / trackable.length) * 100);
-                    } else {
-                      progress = course.progress || 0;
-                    }
-                  } else {
-                    progress = course.progress || 0;
-                  }
-                } catch (e) {
-                  progress = course.progress || 0;
-                }
-                
-                return {
-                  ...course,
-                  progress: progress
-                };
-              })
-            );
-            setCourses(coursesWithProgress);
+            setCourses(coursesData);
           }
         if (timelineData && Array.isArray(timelineData.events)) {
           setTimelineEvents(timelineData.events);
@@ -101,6 +68,7 @@ export default function TeacherDashboard() {
   }, [navigate]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDashboardData();
   }, [fetchDashboardData]);
 
@@ -150,7 +118,6 @@ export default function TeacherDashboard() {
 
   return (
     <div className="min-h-screen bg-[#fcfcfc] font-sans text-[#495057] antialiased flex flex-col">
-      <Header />
       
       <main className="w-full flex-1" style={{ padding: "1.25em 8%" }}>
         <div className="flex flex-col lg:flex-row gap-6">

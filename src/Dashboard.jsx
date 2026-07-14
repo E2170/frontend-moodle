@@ -1,29 +1,22 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import akuzemLogo from "./assets/akuzem-lg.png";
-import Header from "./Header";
+import { useAuth } from "./AuthContext";
+import CourseCard from "./components/CourseCard";
+
 export default function Dashboard() {
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { token, userInfo } = useAuth();
 
   // Durum Yönetimleri
-  const [userInfo, setUserInfo] = useState({
-    fullname: "Yükleniyor...",
-    username: "...",
-    userpictureurl: "",
-  });
   const [courses, setCourses] = useState([]);
   const [timelineEvents, setTimelineEvents] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [conversations, setConversations] = useState([]);
+  const [error, setError] = useState(null);
 
-  // Açılır Menü ve Sekme Durum Yönetimleri
-  const [isCoursesOpen, setIsCoursesOpen] = useState(false);
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const [isLanguageOpen, setIsLanguageOpen] = useState(false);
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false); // EKLENDİ: Profil menüsü durumu
-  const [notificationTab, setNotificationTab] = useState("bildirimler");
-  const [currentLang, setCurrentLang] = useState("TR");
-  const [menuTab, setMenuTab] = useState("active");
+  // Aktif/Arşiv Dersler Sekmesi
+  const menuTab = "active";
 
   const [activityStats, setActivityStats] = useState({
     pastDue: 0,
@@ -32,38 +25,22 @@ export default function Dashboard() {
     completed: 0,
   });
 
-  const [loading, setLoading] = useState(true);
-
+  
   const fetchDashboardData = useCallback(async () => {
-    const token = localStorage.getItem("moodle_token");
-
-    if (!token) {
-      navigate("/");
-      return;
-    }
+    if (!token || !userInfo || !userInfo.userid) return;
 
     try {
-      const userResponse = await fetch(
-        `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json` },
-      );
-      const userData = await userResponse.json();
-
-      if (userData && userData.fullname) {
-        setUserInfo(userData);
-
-        if (userData.userid) {
-          const coursesResponse = await fetch(
-            `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_enrol_get_users_courses&userid=${userData.userid}&moodlewsrestformat=json` },
-          );
-          const timelineResponse = await fetch(
-            `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_calendar_get_action_events_by_timesort&moodlewsrestformat=json` },
-          );
-          const announcementsResponse = await fetch(
-            `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=mod_forum_get_forum_discussions&forumid=2&moodlewsrestformat=json` },
-          );
-          const messagesResponse = await fetch(
-            `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_message_get_conversations&userid=${userData.userid}&moodlewsrestformat=json` },
-          );
+      const [
+        coursesResponse,
+        timelineResponse,
+        announcementsResponse,
+        messagesResponse
+      ] = await Promise.all([
+        fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_enrol_get_users_courses&userid=${userInfo.userid}&moodlewsrestformat=json` }),
+        fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_calendar_get_action_events_by_timesort&moodlewsrestformat=json` }),
+        fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=mod_forum_get_forum_discussions&forumid=2&moodlewsrestformat=json` }),
+        fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_message_get_conversations&userid=${userInfo.userid}&moodlewsrestformat=json` })
+      ]);
 
           const safeParse = async (res) => {
             if (!res.ok) return null;
@@ -76,35 +53,9 @@ export default function Dashboard() {
           const messagesData = await safeParse(messagesResponse);
 
           if (coursesData && Array.isArray(coursesData)) {
-            // Derslerin ilerleme durumunu aktiviteler üzerinden dinamik olarak hesapla
-            const coursesWithProgress = await Promise.all(
-              coursesData.map(async (course) => {
-                try {
-                  const progRes = await fetch(`/api/webservice/rest/server.php`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: `wstoken=${token}&wsfunction=core_completion_get_activities_completion_status&courseid=${course.id}&userid=${userData.userid}&moodlewsrestformat=json`
-                  });
-                  const progData = await progRes.json();
-                  if (progData && progData.statuses) {
-                    // Sadece tamamlanma kriteri açık olan (veya tamamlanmış olan) aktiviteleri alalım
-                    const trackable = progData.statuses.filter(s => s.hascompletion !== false && s.isautomatic !== undefined || s.tracking > 0 || s.modname === 'assign' || s.modname === 'quiz');
-                    if (trackable.length > 0) {
-                      const completed = trackable.filter(s => s.state === 1 || s.state === 2).length;
-                      course.progress = Math.round((completed / trackable.length) * 100);
-                    } else {
-                      course.progress = course.progress || 0; 
-                    }
-                  } else {
-                    course.progress = course.progress || 0;
-                  }
-                } catch (e) {
-                  course.progress = course.progress || 0;
-                }
-                return course;
-              })
-            );
-            setCourses(coursesWithProgress);
+            // Moodle >= 3.6 zaten core_enrol_get_users_courses içerisinde 'progress' dönmektedir.
+            // Ayrıca her ders için completion api'sine gidilip N+1 problemi yaratması engellendi.
+            setCourses(coursesData);
           }
 
           if (timelineData && Array.isArray(timelineData.events)) {
@@ -150,14 +101,13 @@ export default function Dashboard() {
           if (messagesData && Array.isArray(messagesData.conversations)) {
             setConversations(messagesData.conversations);
           }
-        }
-      }
-    } catch (error) {
-      console.error("Moodle API entegrasyon hatası:", error);
+    } catch (err) {
+      console.error("Moodle API entegrasyon hatası:", err);
+      setError("Veriler yüklenirken bir sorun oluştu. Moodle sunucusuna geçici olarak ulaşılamıyor olabilir.");
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, [navigate, token, userInfo]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -166,46 +116,12 @@ export default function Dashboard() {
     loadData();
   }, [fetchDashboardData]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("moodle_token");
-    localStorage.removeItem("user_role");
-    navigate("/");
-  };
-
-  const getCourseInitials = (fullname) => {
-    if (!fullname) return "DS";
-    const words = fullname.split(" ");
-    if (words.length >= 2) {
-      return (words[0][0] + words[1][0]).toUpperCase();
-    }
-    return fullname.slice(0, 2).toUpperCase();
-  };
-
-  const getInitials = (name) => {
-    if (!name || name === "Yükleniyor...") return "CK";
-    const parts = name.trim().split(" ");
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-  };
-
   const formatMoodleDate = (timestamp) => {
     if (!timestamp) return "";
     const date = new Date(timestamp * 1000);
     const months = [
-      "Oca",
-      "Şub",
-      "Mar",
-      "Nis",
-      "May",
-      "Haz",
-      "Tem",
-      "Ağu",
-      "Eyl",
-      "Eki",
-      "Kas",
-      "Ara",
+      "Oca", "Şub", "Mar", "Nis", "May", "Haz",
+      "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara",
     ];
     return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
   };
@@ -248,9 +164,18 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800 antialiased overflow-hidden">
       {/* NAVBAR */}
-      <Header />
 
       <main className="w-full max-w-[1400px] mx-auto px-4 sm:px-[6%] py-8 h-[calc(100vh-60px)] overflow-y-auto">
+        
+        {error && (
+          <div className="bg-red-50 border border-red-200 p-4 mb-6 rounded-[8px] flex items-center gap-3">
+            <svg className="w-6 h-6 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="text-sm font-medium text-red-800">{error}</div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           
           {/* DERSLERİM - 2 COLUMN */}
@@ -276,38 +201,7 @@ export default function Dashboard() {
                 <div className="col-span-2 text-center py-8 text-gray-500 text-sm border border-[#e9ecef] rounded-[8px] bg-white">Kayıtlı ders bulunamadı.</div>
               ) : (
                 activeCourses.map((course) => (
-                  <div key={course.id} onClick={() => navigate(`/course/${course.id}`)} className="bg-white rounded-[8px] border border-[#e9ecef] shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md hover:border-[#ced4da] transition-all cursor-pointer h-[150px] flex flex-col justify-between overflow-hidden relative group">
-                    <div className="p-4 flex-1">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] font-bold text-[#6c757d] bg-[#f8f9fa] px-1.5 py-0.5 rounded">
-                          {course.shortname || "DERS"}
-                        </span>
-                        
-                        <div className="relative">
-                          <svg width="36" height="36" className="transform -rotate-90">
-                            <circle cx="18" cy="18" r="16" stroke="#e9ecef" strokeWidth="3" fill="none" />
-                            <circle cx="18" cy="18" r="16" stroke="#28a745" strokeWidth="3" fill="none" strokeDasharray="100.5" strokeDashoffset={100.5 - ((course.progress || 0) / 100) * 100.5} />
-                          </svg>
-                          <div className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-[#28a745]">
-                            <span className="text-[7px]">%</span>{course.progress !== undefined ? Math.round(course.progress) : 0}
-                          </div>
-                        </div>
-
-                      </div>
-                      <h3 className="text-[13px] font-bold text-[#212529] leading-tight pr-10 line-clamp-2 mt-1">
-                        {course.fullname}
-                      </h3>
-                    </div>
-                    <div className="flex justify-between items-center px-4 pb-4 mt-auto">
-                      <div className="w-[26px] h-[26px] rounded-full bg-[#945cbf] text-white flex items-center justify-center text-[10px] font-bold shadow-sm">
-                        {getCourseInitials(course.fullname)}
-                      </div>
-                      <div className="flex gap-2 text-[#adb5bd] opacity-0 group-hover:opacity-100 transition-opacity">
-                         <span className="text-[16px] hover:text-[#6c757d]">⚙</span>
-                         <span className="text-[16px] hover:text-[#6c757d]">⏱</span>
-                      </div>
-                    </div>
-                  </div>
+                  <CourseCard key={course.id} course={course} />
                 ))
               )}
             </div>
@@ -473,7 +367,7 @@ export default function Dashboard() {
                </div>
                <div className="flex items-center gap-3">
                  <span className="text-[#adb5bd] text-[16px] cursor-pointer hover:text-[#6c757d]">👁</span>
-                 <button className="text-[12px] text-[#212529] font-medium flex items-center hover:text-[#0056b3]">Tümü <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span></button>
+                 <button onClick={() => navigate("/calendar")} className="text-[12px] text-[#212529] font-medium flex items-center hover:text-[#0056b3]">Tümü <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span></button>
                </div>
             </div>
             <div className="p-5 flex-1">
@@ -499,7 +393,7 @@ export default function Dashboard() {
                </div>
                <div className="flex items-center gap-3">
                  <span className="text-[#adb5bd] text-[16px] cursor-pointer hover:text-[#6c757d]">👁</span>
-                 <button className="text-[12px] text-[#212529] font-medium flex items-center hover:text-[#0056b3]">Tümü <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span></button>
+                 <button onClick={() => navigate("/calendar")} className="text-[12px] text-[#212529] font-medium flex items-center hover:text-[#0056b3]">Tümü <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span></button>
                </div>
             </div>
             <div className="p-5 flex-1">

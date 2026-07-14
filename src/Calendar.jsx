@@ -1,18 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import Header from "./Header";
-import akuzemLogo from "./assets/akuzem-lg.png";
 
 export default function Calendar() {
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   // Temel Durum Yönetimleri
-  const [userInfo, setUserInfo] = useState({
-    fullname: "Yükleniyor...",
-    userpictureurl: "",
-  });
-  const [loading, setLoading] = useState(true);
-  const [events, setEvents] = useState([]);
+      const [events, setEvents] = useState([]);
 
   // Navigasyon ve Tarih Yönetimi (Anlık tarih referans alınır)
   const [currentDate, setCurrentDate] = useState(new Date(2026, 6, 6)); // Defaulting to July 6, 2026 to match screenshot
@@ -73,7 +67,7 @@ export default function Calendar() {
       const userData = await userResponse.json();
 
       if (userData && userData.fullname) {
-        setUserInfo(userData);
+        
       }
 
       const eventsResponse = await fetch(
@@ -95,11 +89,7 @@ export default function Calendar() {
     fetchCalendarData();
   }, [fetchCalendarData]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("moodle_token");
-    navigate("/");
-  };
-
+  
   const toggleFilter = (key) => {
     setFilters((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -137,7 +127,6 @@ export default function Calendar() {
 
   return (
     <div className="h-screen flex flex-col bg-[#f8fafc] font-sans text-[#495057] antialiased overflow-hidden">
-      <Header />
 
       {/* Ana Gövde */}
       <div className="flex flex-1 overflow-hidden h-full">

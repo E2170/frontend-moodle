@@ -1,16 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import akuzemLogo from "./assets/akuzem-lg.png";
-import Header from "./Header";
 export default function Forum() {
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const [userInfo, setUserInfo] = useState({
-    fullname: "Yükleniyor...",
-    userpictureurl: "",
-  });
-  const [loading, setLoading] = useState(true);
-
+    
   // Moodle'dan API ile forum verilerini çekmek istersek diye boş fonksiyon bırakıldı
   const fetchForumData = useCallback(async () => {
     const token = localStorage.getItem("moodle_token");
@@ -26,7 +20,7 @@ export default function Forum() {
       const userData = await userResponse.json();
 
       if (userData && userData.userid) {
-        setUserInfo(userData);
+        
       }
     } catch (error) {
       console.error("Forum verileri alınamadı:", error);
@@ -39,14 +33,9 @@ export default function Forum() {
     fetchForumData();
   }, [fetchForumData]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("moodle_token");
-    navigate("/");
-  };
-
+  
   return (
     <div className="min-h-screen bg-[#fcfcfc] font-sans text-[#495057] antialiased flex flex-col">
-      <Header />
 
       {/* Ana İçerik */}
       <main className="max-w-[1200px] w-full mx-auto px-4 py-8 flex-1">

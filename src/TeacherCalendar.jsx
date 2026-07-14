@@ -1,17 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import Header from "./Header";
 
 export default function TeacherCalendar() {
+  // const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   // Temel Durum Yönetimleri
-  const [userInfo, setUserInfo] = useState({
-    fullname: "Yükleniyor...",
-    userpictureurl: "",
-  });
-  const [loading, setLoading] = useState(true);
-  const [events, setEvents] = useState([]);
+      const [events, setEvents] = useState([]);
 
   // Navigasyon ve Tarih Yönetimi (Anlık tarih referans alınır)
   const [currentDate, setCurrentDate] = useState(new Date(2026, 6, 6)); // Defaulting to July 6, 2026 to match screenshot
@@ -69,11 +64,7 @@ export default function TeacherCalendar() {
       const userResponse = await fetch(
         `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json` },
       );
-      const userData = await userResponse.json();
-
-      if (userData && userData.fullname) {
-        setUserInfo(userData);
-      }
+      await userResponse.json();
 
       const eventsResponse = await fetch(
         `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_calendar_get_action_events_by_timesort&moodlewsrestformat=json` },
@@ -85,12 +76,11 @@ export default function TeacherCalendar() {
       }
     } catch (error) {
       console.error("Takvim verileri entegrasyon hatası:", error);
-    } finally {
-      setLoading(false);
     }
   }, [navigate]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCalendarData();
   }, [fetchCalendarData]);
 
@@ -152,7 +142,6 @@ export default function TeacherCalendar() {
 
   return (
     <div className="h-screen flex flex-col bg-[#f8fafc] font-sans text-[#495057] antialiased overflow-hidden">
-      <Header />
 
       {/* Ana Gövde */}
       <div className="flex flex-1 overflow-hidden h-full">

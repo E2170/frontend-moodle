@@ -1,26 +1,20 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import akuzemLogo from "./assets/akuzem-lg.png";
-import Header from "./Header";
 
 export default function TeacherFiles() {
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   // Temel Durum Yönetimleri
-  const [userInfo, setUserInfo] = useState({
-    fullname: "Yükleniyor...",
-    userpictureurl: "",
-  });
-  const [files, setFiles] = useState([]);
-  const [loading, setLoading] = useState(true);
-
+    const [files, setFiles] = useState([]);
+  
   // Filtre ve Menü Durumları
   const [filters, setFilters] = useState({
     ara: "",
     yukleyen: "",
     tip: "",
   });
-  const [isCoursesOpen, setIsCoursesOpen] = useState(false);
+  
 
   // Moodle API Entegrasyonu
   const fetchFilesData = useCallback(async () => {
@@ -37,7 +31,7 @@ export default function TeacherFiles() {
       const userData = await userResponse.json();
 
       if (userData && userData.userid) {
-        setUserInfo(userData);
+        
 
         try {
           const filesResponse = await fetch(
@@ -142,20 +136,8 @@ export default function TeacherFiles() {
     loadData();
   }, [fetchFilesData]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("moodle_token");
-    localStorage.removeItem("user_role");
-    navigate("/");
-  };
-
-  const getInitials = (name) => {
-    if (!name || name === "Yükleniyor...") return "AE";
-    const parts = name.trim().split(" ");
-    if (parts.length >= 2)
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    return name.slice(0, 2).toUpperCase();
-  };
-
+  
+  
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((prev) => ({ ...prev, [name]: value }));
@@ -176,7 +158,6 @@ export default function TeacherFiles() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-gray-700 antialiased overflow-y-auto">
-      <Header />
 
       {/* ANA İÇERİK - Dosyalarım */}
       <main className="max-w-350 mx-auto p-8">

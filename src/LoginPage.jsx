@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "./AuthContext";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,7 +18,7 @@ export default function LoginPage() {
     const params = new URLSearchParams({
       username: username,
       password: password,
-      service: "moodle_mobile_app",
+      service: "akuzem_react",
     });
 
     try {
@@ -45,7 +47,6 @@ export default function LoginPage() {
       }
 
       if (data.token) {
-        localStorage.setItem("moodle_token", data.token);
         if (data.privatetoken) {
           localStorage.setItem("moodle_privatetoken", data.privatetoken);
         }
@@ -93,28 +94,36 @@ export default function LoginPage() {
               const courses = await coursesRes.json();
 
               if (Array.isArray(courses) && courses.length > 0) {
-                const firstCourseId = courses[0].id;
-                const calendarAccessRes = await fetch(
-                  `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${data.token}&wsfunction=core_calendar_get_calendar_access_information&courseid=${firstCourseId}&moodlewsrestformat=json` },
+                // Öğretmen olup olmadığını anlamak için, öğrencinin normalde erişemediği "Katılımcı Listesi" (core_enrol_get_enrolled_users) fonksiyonunu deneriz.
+                // İlk 10 dersi eşzamanlı olarak kontrol ediyoruz.
+                const coursesToCheck = courses.slice(0, 10);
+                const accessPromises = coursesToCheck.map(course => 
+                  fetch(`/api/webservice/rest/server.php`, { 
+                    method: "POST", 
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" }, 
+                    body: `wstoken=${data.token}&wsfunction=core_enrol_get_enrolled_users&courseid=${course.id}&moodlewsrestformat=json` 
+                  })
+                  .then(res => res.json())
+                  .catch(() => ({}))
                 );
-                const calendarAccess = await calendarAccessRes.json();
-
-                if (calendarAccess && calendarAccess.canmanageentries === true) {
-                  isTeacher = true;
-                }
+                
+                const accessResults = await Promise.all(accessPromises);
+                
+                // Eğer dönen sonuç bir Array ise (yani hata mesajı/exception değilse), bu kişi o dersin katılımcı listesini görebiliyordur (Eğitmendir).
+                isTeacher = accessResults.some(result => Array.isArray(result) && result.length > 0);
               }
             }
 
             if (isTeacher) {
-              localStorage.setItem("user_role", "teacher");
+              login(data.token, "teacher");
               navigate("/teacher-dashboard");
             } else {
-              localStorage.setItem("user_role", "student");
+              login(data.token, "student");
               navigate("/dashboard");
             }
           } catch (roleError) {
             console.error("Rol analiz aşamasında sistem hatası:", roleError);
-            localStorage.setItem("user_role", "student");
+            login(data.token, "student");
             navigate("/dashboard");
           }
         };

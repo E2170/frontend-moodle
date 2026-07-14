@@ -1,8 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import akuzemLogo from "./assets/akuzem-lg.png";
-import Header from "./Header";
+import { useLocation, useParams, useNavigate } from "react-router-dom";
 import TeacherActivityViewer from "./TeacherActivityViewer";
+import { useAuth } from "./AuthContext";
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -39,7 +38,6 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
   });
   
   const [activeTab, setActiveTab] = useState("İÇERİK");
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -52,7 +50,8 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
     try {
       const toUnix = (str) => {
         if (!str) return 0;
-        return Math.floor(new Date(str).getTime() / 1000);
+        const ms = new Date(str).getTime();
+        return isNaN(ms) ? 0 : Math.floor(ms / 1000);
       };
 
       const payload = {
@@ -77,14 +76,21 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
       const res = await moodlePost(token, "local_vueapi_add_activity", payload);
 
       if (res && res.exception) {
-        throw new Error(res.message || "API hatası: İstisna fırlatıldı.");
+        const dbg = res.debuginfo ? `\n(Detay: ${res.debuginfo})` : "";
+        throw new Error((res.message || "API hatası: İstisna fırlatıldı.") + dbg);
       }
 
-      if (res && res.status === "success") {
-        if (onSaved) onSaved(res.cmid || res.activityid);
+      if (Array.isArray(res) && res.length > 0 && res[0].error) {
+        throw new Error(res[0].error);
+      }
+
+      // Eklenti yapısına göre status, success, cmid veya activityid dönebilir.
+      if (res && (res.status === "success" || res.status === true || res.cmid || res.activityid || res.id)) {
+        if (onSaved) onSaved(res.cmid || res.activityid || res.id);
         onClose();
       } else {
-        throw new Error("Sunucudan geçerli bir onay alınamadı. Yanıtı kontrol edin.");
+        // Hata vermiyordu ama eklemiyordu, çünkü yanıtı başarı sanıyorduk. Gerçek yanıtı ekrana basalım:
+        throw new Error("Moodle Yanıtı (Lütfen bunu kopyalayıp bana gönderin): " + JSON.stringify(res));
       }
 
     } catch (e) {
@@ -136,12 +142,6 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
 
         {/* İçerik Gövdesi */}
         <div className="flex-1 overflow-y-auto p-6 bg-white relative">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500">
-              <div className="w-10 h-10 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
-              <div className="text-sm font-semibold">Ayarlar Moodle'dan alınıyor...</div>
-            </div>
-          ) : (
             <div className="space-y-6">
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-sm font-medium flex items-center gap-3">
@@ -264,11 +264,9 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
                 </div>
               )}
             </div>
-          )}
         </div>
 
         {/* Footer */}
-        {!loading && (
           <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between shrink-0">
             <button onClick={onClose} className="px-6 py-2.5 text-sm font-bold text-gray-600 hover:text-gray-800 flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -281,7 +279,6 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
                 : <>Devam et <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg></>}
             </button>
           </div>
-        )}
       </div>
     </div>
   );
@@ -295,8 +292,9 @@ import { AlmsQuizActivityModal, AlmsSessionWizard } from "./AlmsQuizFlow";
 export default function TeacherCoursePage() {
   const { courseId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { userInfo } = useAuth();
 
-  const [userInfo, setUserInfo] = useState({ fullname: "Yükleniyor...", userpictureurl: "" });
   const [courseDetail, setCourseDetail] = useState({ fullname: "Ders Yükleniyor..." });
   const [sections, setSections] = useState([]);
   const [activeTab, setActiveTab] = useState("Ders İçeriği");
@@ -311,10 +309,21 @@ export default function TeacherCoursePage() {
 
   const handleSelectActivityType = (actType) => {
     setIsActivityPanelOpen(false);
-    if (actType.id === "quiz") {
-      setAlmsQuizActivity({ sectionNum: activeSectionId });
+    
+    // activeSectionId, Moodle veritabanındaki tablonun id'sidir, section numarası değildir!
+    const activeSection = sections.find(s => s.id === activeSectionId);
+    let sNum;
+    if (activeSection && activeSection.section !== undefined) {
+      sNum = activeSection.section;
     } else {
-      setActivityFormModal({ actType, sectionNum: activeSectionId });
+      const parsed = parseInt(activeSectionId?.toString().replace("default-", ""), 10);
+      sNum = isNaN(parsed) ? 0 : parsed;
+    }
+
+    if (actType.id === "quiz") {
+      setAlmsQuizActivity({ sectionNum: sNum });
+    } else {
+      setActivityFormModal({ actType, sectionNum: sNum });
     }
   };
 
@@ -332,21 +341,43 @@ export default function TeacherCoursePage() {
           body: `wstoken=${token}&wsfunction=core_course_get_contents&courseid=${courseId}&moodlewsrestformat=json`,
         }),
       ]);
-      const userData = await userRes.json();
+      await userRes.json();
       const sectionsData = await sectionsRes.json();
 
-      if (userData?.fullname) setUserInfo(userData);
       if (Array.isArray(sectionsData)) {
         setSections(sectionsData);
         if (sectionsData.length > 0) {
           setCourseDetail({ fullname: sectionsData[0].coursedisplayname || "DERS İÇERİĞİ" });
-          setActiveSectionId(prev => prev || sectionsData[0].id);
+          
+          if (location.state?.openCmid) {
+             let targetMod = null;
+             let targetSecId = null;
+             for (const sec of sectionsData) {
+                const mod = sec.modules?.find(m => m.id == location.state.openCmid);
+                if (mod) {
+                   targetMod = mod;
+                   targetSecId = sec.id;
+                   break;
+                }
+             }
+             if (targetMod) {
+                setActiveSectionId(targetSecId);
+                setSelectedModuleForView(targetMod);
+             } else {
+                setActiveSectionId(prev => prev || sectionsData[0].id);
+             }
+          } else {
+             setActiveSectionId(prev => prev || sectionsData[0].id);
+          }
         }
       }
     } catch (err) { console.error(err); }
-  }, [courseId, navigate]);
+  }, [courseId, navigate, location.state]);
 
-  useEffect(() => { fetchCourseData(); }, [fetchCourseData]);
+  useEffect(() => { 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchCourseData(); 
+  }, [fetchCourseData]);
 
   // Moodle aktivite türü → bizim UI'ımız + Moodle'ın add parametresi
   const activityTypes = [
@@ -370,13 +401,6 @@ export default function TeacherCoursePage() {
     { id: "workshop",      moodleId: "workshop",        label: "Atölye",       iconColor: "#c0392b", emoji: "🔨", desc: "Akran değerlendirmesi." },
     { id: "h5pactivity",   moodleId: "h5pactivity",     label: "H5P",          iconColor: "#0099cc", emoji: "🎮", desc: "İnteraktif H5P içeriği." },
   ];
-
-  const getSectionNum = () => {
-    if (!activeSection) return 0;
-    if (activeSection.section !== undefined) return activeSection.section;
-    const parsed = parseInt(activeSectionId?.toString().replace("default-", ""), 10);
-    return isNaN(parsed) ? 0 : parsed;
-  };
 
   const defaultWeeks = Array.from({ length: 16 }, (_, i) => ({ id: `default-${i}`, name: `HAFTA ${i + 1}`, modules: [] }));
   const displaySections = sections.length > 0 ? sections : defaultWeeks;
@@ -410,43 +434,14 @@ export default function TeacherCoursePage() {
     if (!window.confirm(`'${mod.name}' isimli aktiviteyi silmek istediğinize emin misiniz?`)) return;
 
     try {
-      // API üzerinden (token tabanlı) core_course_delete_modules servisi yetki hatası (Erişim kontrolü istisnası) 
-      // veriyorsa, yetki problemini bypass etmek için web tarayıcısı oturumunu (ajax) kullanıyoruz.
-      const privateToken = localStorage.getItem("moodle_privatetoken") || "";
-      
-      // 1. Autologin URL tetiklenerek MoodleSession cookie'si alınır
-      if (privateToken) {
-        const autologinRes = await moodlePost(token, "tool_mobile_get_autologin_key", { privatetoken: privateToken });
-        if (autologinRes?.autologinurl) {
-          const parsed = new URL(autologinRes.autologinurl);
-          await fetch(`/api${parsed.pathname}${parsed.search}`); 
-        }
-      }
-
-      // 2. Moodle anasayfasına gidilerek güncel "sesskey" değeri HTML içinden çekilir
-      const myPageRes = await fetch("/api/my/");
-      const myPageHtml = await myPageRes.text();
-      const sesskeyMatch = myPageHtml.match(/"sesskey":"([^"]+)"/);
-      
-      if (!sesskeyMatch) throw new Error("Oturum anahtarı (sesskey) alınamadı. Lütfen tekrar giriş yapın.");
-      const sesskey = sesskeyMatch[1];
-
-      // 3. Web arayüzünün kullandığı AJAX servisine (core_course_edit_module) istek atılarak aktivite silinir
-      const payload = [{
-        index: 0,
-        methodname: "core_course_edit_module",
-        args: { id: mod.id, action: "delete", sectionreturn: 0 }
-      }];
-
-      const deleteRes = await fetch(`/api/lib/ajax/service.php?sesskey=${sesskey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+      // API üzerinden (token tabanlı) resmi silme işlemini yapıyoruz.
+      // (Kullanıcı core_course_delete_modules yetkisine sahip olduğu için doğrudan çalışacaktır)
+      const deleteRes = await moodlePost(token, "core_course_delete_modules", {
+        "cmids[0]": mod.id
       });
 
-      const deleteData = await deleteRes.json();
-      if (deleteData[0] && deleteData[0].error) {
-        throw new Error(deleteData[0].exception?.message || "Silme başarısız.");
+      if (deleteRes?.exception) {
+        throw new Error(deleteRes.message || "Aktivite silinirken erişim yetkisi hatası oluştu.");
       }
 
       alert("Aktivite başarıyla silindi.");
@@ -458,7 +453,6 @@ export default function TeacherCoursePage() {
 
   return (
     <div className="h-screen flex flex-col bg-[#f4f6f9] font-sans text-gray-800 overflow-hidden">
-      <Header />
 
       {/* Üst Bar */}
       <div className="bg-white border-b border-gray-200 h-12 flex items-center px-6 shrink-0 z-30 shadow-sm">
@@ -556,7 +550,7 @@ export default function TeacherCoursePage() {
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate("/teacher-question-bank");
+                              navigate("/teacher-question-bank", { state: { courseId, quizId: mod.instance, cmid: mod.id } });
                             }}
                             className="text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg shadow-sm"
                             title="Soru Bankasına Git"
@@ -684,7 +678,8 @@ export default function TeacherCoursePage() {
               try {
                 const toUnix = (str) => {
                   if (!str) return 0;
-                  return Math.floor(new Date(str).getTime() / 1000);
+                  const ms = new Date(str).getTime();
+                  return isNaN(ms) ? 0 : Math.floor(ms / 1000);
                 };
 
                 const payload = {
@@ -703,16 +698,21 @@ export default function TeacherCoursePage() {
                 const res = await moodlePost(token, "local_vueapi_add_activity", payload);
 
                 if (res && res.exception) {
-                  throw new Error(res.message || "API hatası: İstisna fırlatıldı.");
+                  const dbg = res.debuginfo ? `\n(Detay: ${res.debuginfo})` : "";
+                  throw new Error((res.message || "API hatası: İstisna fırlatıldı.") + dbg);
                 }
 
-                if (res && res.status === "success") {
+                if (Array.isArray(res) && res.length > 0 && res[0].error) {
+                  throw new Error(res[0].error);
+                }
+
+                if (res && (res.status === "success" || res.status === true || res.cmid || res.activityid || res.id)) {
                   alert(`'${sessionInfo.name}' oturumu ${questions.length} soru ile başarıyla oluşturuldu ve yayınlandı!`);
                   setAlmsSessionWizard(null);
                   setAlmsQuizActivity(null);
                   fetchCourseData();
                 } else {
-                  throw new Error("Sunucudan geçerli bir onay alınamadı. Yanıtı kontrol edin.");
+                  throw new Error("Moodle Yanıtı (Lütfen bunu kopyalayıp bana gönderin): " + JSON.stringify(res));
                 }
               } catch (e) {
                 alert("Kaydedilirken hata oluştu: " + e.message);

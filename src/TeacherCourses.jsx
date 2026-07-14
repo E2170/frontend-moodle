@@ -1,13 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import Header from "./Header";
 
 export default function TeacherCourses() {
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
-
+  
   // Filtre durumları
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -33,41 +32,7 @@ export default function TeacherCourses() {
         const coursesData = await coursesResponse.json();
 
         if (Array.isArray(coursesData)) {
-          const coursesWithProgress = await Promise.all(
-            coursesData.map(async (course) => {
-              let progress = 0;
-              try {
-                const progRes = await fetch(`/api/webservice/rest/server.php`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                  body: `wstoken=${token}&wsfunction=core_completion_get_activities_completion_status&courseid=${course.id}&userid=${userData.userid}&moodlewsrestformat=json`
-                });
-                const progData = await progRes.json();
-                if (progData && progData.statuses) {
-                  const trackable = progData.statuses.filter(s => s.hascompletion !== false && s.isautomatic !== undefined || s.tracking > 0 || s.modname === 'assign' || s.modname === 'quiz');
-                  if (trackable.length > 0) {
-                    const completed = trackable.filter(s => s.state === 1 || s.state === 2).length;
-                    progress = Math.round((completed / trackable.length) * 100);
-                  } else {
-                    progress = course.progress || 0;
-                  }
-                } else {
-                  progress = course.progress || 0;
-                }
-              } catch (e) {
-                progress = course.progress || 0;
-              }
-
-              return {
-                ...course,
-                categoryname: course.categoryname || "Bilgisayar Programcılığı",
-                term: "20252026BAHAR", 
-                teacher: userData.fullname || "AHMET ERTUĞRUL", 
-                progress: progress,
-              };
-            })
-          );
-          setCourses(coursesWithProgress);
+          setCourses(coursesData);
         }
       }
     } catch (error) {
@@ -78,6 +43,7 @@ export default function TeacherCourses() {
   }, [navigate]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCoursesData();
   }, [fetchCoursesData]);
 
@@ -103,7 +69,6 @@ export default function TeacherCourses() {
 
   return (
     <div className="min-h-screen bg-[#fcfcfc] font-sans text-[#495057] antialiased flex flex-col">
-      <Header />
 
       {/* Ana İçerik */}
       <main className="max-w-[1200px] w-full mx-auto px-4 py-6 flex-1 mt-4">

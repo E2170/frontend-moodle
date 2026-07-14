@@ -107,10 +107,10 @@ const SectionHeader = ({ mod }) => {
 // ASSIGN (Ödev)
 // ─────────────────────────────────────────────
 function AssignViewer({ mod, token, userId }) {
+  const [loading, setLoading] = useState(true);
   const [assignment, setAssignment] = useState(null);
   const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [file, setFile] = useState(null);
+    const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState(null);
   const fileRef = useRef(null);
@@ -160,7 +160,7 @@ function AssignViewer({ mod, token, userId }) {
         "plugindata[onlinetext_editor][format]": 1,
         "plugindata[onlinetext_editor][itemid]": 0,
       });
-      if (save?.exception) throw new Error(save.message || "Kaydetme hatası.");
+      if (save?.exception) throw new Error((save.message || "Kaydetme hatası.") + (save.debuginfo ? `\n(Detay: ${save.debuginfo})` : ""));
 
       // Notlandırmaya gönder
       await moodlePost(token, "mod_assign_submit_for_grading", {
@@ -334,10 +334,10 @@ function AssignViewer({ mod, token, userId }) {
 // QUIZ (Sınav) — Native tam uygulama
 // ─────────────────────────────────────────────
 function QuizViewer({ mod, token, userId, courseId }) {
+  const [loading, setLoading] = useState(true);
   const [quiz, setQuiz] = useState(null);
   const [attempts, setAttempts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState("info"); // info | taking | finished
+    const [mode, setMode] = useState("info"); // info | taking | finished
   const [currentAttempt, setCurrentAttempt] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [quizLoading, setQuizLoading] = useState(false);
@@ -413,12 +413,16 @@ function QuizViewer({ mod, token, userId, courseId }) {
           "preflightdata[0][name]": "quizpassword",
           "preflightdata[0][value]": "",
         });
-        if (res.exception) throw new Error(res.message || "Sınav başlatılamadı.");
+        if (res.exception) throw new Error((res.message || "Sınav başlatılamadı.") + (res.debuginfo ? `\n(Detay: ${res.debuginfo})` : ""));
         if (!res.attempt) throw new Error(res.warnings?.[0]?.message || "Sınav başlatılamadı.");
         attemptObj = res.attempt;
       }
-      setCurrentAttempt(attemptObj);
+      if (!attemptObj || !attemptObj.id) {
+          console.error("Geçersiz attemptObj:", attemptObj, "Tam cevap:", res || ongoing);
+          throw new Error("Sınav başlatıldı ancak attempt kimliği (id) alınamadı. Lütfen sayfayı yenileyip tekrar deneyin.");
+      }
 
+      setCurrentAttempt(attemptObj);
       await fetchPage(attemptObj.id, attemptObj.currentpage || 0);
 
       if (quiz?.timelimit > 0 && attemptObj.timestart) {
@@ -749,9 +753,9 @@ function UrlViewer({ mod }) {
 // PAGE (Sayfa)
 // ─────────────────────────────────────────────
 function PageViewer({ mod, token, courseId }) {
-  const [content, setContent] = useState(null);
   const [loading, setLoading] = useState(true);
-
+  const [content, setContent] = useState(null);
+  
   useEffect(() => {
     moodlePost(token, "mod_page_get_pages_by_courses", { "courseids[0]": courseId })
       .then((r) => {
@@ -827,9 +831,9 @@ function FolderViewer({ mod, token }) {
 // FORUM
 // ─────────────────────────────────────────────
 function ForumViewer({ mod, token }) {
-  const [discussions, setDiscussions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState(null);
+  const [discussions, setDiscussions] = useState([]);
+    const [expanded, setExpanded] = useState(null);
   const [posts, setPosts] = useState({});
   const [postsLoading, setPostsLoading] = useState(false);
 
@@ -923,9 +927,9 @@ function ForumViewer({ mod, token }) {
 // CHOICE (Seçim / Anket)
 // ─────────────────────────────────────────────
 function ChoiceViewer({ mod, token, userId }) {
-  const [choice, setChoice] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState(null);
+  const [choice, setChoice] = useState(null);
+    const [selected, setSelected] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState(null);
   const [results, setResults] = useState(null);
@@ -1028,9 +1032,9 @@ function ChoiceViewer({ mod, token, userId }) {
 // FEEDBACK (Geri Bildirim)
 // ─────────────────────────────────────────────
 function FeedbackViewer({ mod, token }) {
-  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [answers, setAnswers] = useState({});
+  const [items, setItems] = useState([]);
+    const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState(null);
   const [completed, setCompleted] = useState(false);
@@ -1181,9 +1185,9 @@ function FeedbackViewer({ mod, token }) {
 // SCORM
 // ─────────────────────────────────────────────
 function ScormViewer({ mod, token }) {
-  const [scorm, setScorm] = useState(null);
   const [loading, setLoading] = useState(true);
-
+  const [scorm, setScorm] = useState(null);
+  
   useEffect(() => {
     moodlePost(token, "mod_scorm_get_scorms_by_courses", { "courseids[0]": mod.course || 0 })
       .then(r => {
@@ -1227,9 +1231,9 @@ function ScormViewer({ mod, token }) {
 // GLOSSARY (Sözlük)
 // ─────────────────────────────────────────────
 function GlossaryViewer({ mod, token }) {
-  const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [entries, setEntries] = useState([]);
+    const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState(null);
 
   useEffect(() => {
@@ -1301,10 +1305,10 @@ function GlossaryViewer({ mod, token }) {
 // BOOK (Kitap)
 // ─────────────────────────────────────────────
 function BookViewer({ mod, token, courseId }) {
+  const [loading, setLoading] = useState(true);
   const [chapters, setChapters] = useState([]);
   const [activeChapter, setActiveChapter] = useState(null);
-  const [loading, setLoading] = useState(true);
-
+  
   useEffect(() => {
     moodlePost(token, "mod_book_get_books_by_courses", { "courseids[0]": courseId })
       .then(r => {
@@ -1386,11 +1390,11 @@ function BookViewer({ mod, token, courseId }) {
 // WIKI
 // ─────────────────────────────────────────────
 function WikiViewer({ mod, token, courseId }) {
+  const [loading, setLoading] = useState(true);
   const [pages, setPages] = useState([]);
   const [activePage, setActivePage] = useState(null);
   const [pageContent, setPageContent] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [contentLoading, setContentLoading] = useState(false);
+    const [contentLoading, setContentLoading] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -1446,7 +1450,18 @@ function WikiViewer({ mod, token, courseId }) {
         </div>
       )}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-        {activePage && <h2 className="text-[18px] font-bold text-[#495057] mb-4">{activePage.title}</h2>}
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={() => window.history.back()}
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+            title="Geri Dön"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
+          <h2 className="text-[18px] font-bold text-[#495057] m-0">Aktivite Görüntüleyici v1.1</h2>
+        </div>
         {contentLoading ? <LoadingSpinner /> : (
           pageContent
             ? <div className="text-[14px] text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: pageContent }} />
@@ -1485,6 +1500,7 @@ function GenericViewer({ mod }) {
 // MAIN EXPORT
 // ─────────────────────────────────────────────
 export default function ActivityViewer({ mod, token, userId, courseId, onBack }) {
+  const [loading, setLoading] = useState(true);
   const renderViewer = () => {
     switch (mod.modname) {
       case "assign":    return <AssignViewer    mod={mod} token={token} userId={userId} />;

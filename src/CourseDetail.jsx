@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import Header from "./Header";
+import { useAuth } from "./AuthContext";
 import akuzemLogo from "./assets/akuzem-lg.png";
 import ActivityViewer from "./ActivityViewer";
 
 export default function CourseDetail() {
+  const [loading, setLoading] = useState(true);
   const { courseId } = useParams();
   const navigate = useNavigate();
 
@@ -17,15 +18,14 @@ export default function CourseDetail() {
   const [teacher, setTeacher] = useState(null);
   const [activeTab, setActiveTab] = useState("ders-icerigi");
   const [selectedActivity, setSelectedActivity] = useState(null);
-  const [loading, setLoading] = useState(true);
-
+  
   // Açılır Menü ve Sekme Durumları
-  const [isCoursesOpen, setIsCoursesOpen] = useState(false);
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const [isLanguageOpen, setIsLanguageOpen] = useState(false);
-  const [notificationTab, setNotificationTab] = useState("bildirimler");
-  const [currentLang, setCurrentLang] = useState("TR");
-  const [menuTab, setMenuTab] = useState("active"); // "active" veya "archive"
+  
+  
+  
+  
+  
+   // "active" veya "archive"
 
   const [assignmentStats, setAssignmentStats] = useState({
     total: 0,
@@ -138,34 +138,20 @@ export default function CourseDetail() {
   }, [courseId, navigate]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     const loadData = async () => {
       await fetchCourseDetails();
     };
     loadData();
   }, [fetchCourseDetails]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("moodle_token");
-    navigate("/");
-  };
-
+  
   const unreadMessagesCount = 0;
 
-  const [currentUnixTime] = useState(() => Math.floor(Date.now() / 1000));
-  const activeCourses = courses.filter(
-    (c) => !c.enddate || c.enddate === 0 || c.enddate > currentUnixTime,
-  );
-  const archivedCourses = courses.filter(
-    (c) => c.enddate && c.enddate !== 0 && c.enddate <= currentUnixTime,
-  );
-
-  // Şu an hangi sekmedeysek o listeyi render edeceğiz
-  const displayedCourses =
-    menuTab === "active" ? activeCourses : archivedCourses;
+  // const [currentUnixTime] = useState(() => Math.floor(Date.now() / 1000));
 
   return (
     <div className="min-h-screen bg-[#eeede9] font-sans text-[#495057] antialiased flex flex-col">
-      <Header />
 
       {/* Ders Alt Navigasyon Çubuğu */}
       <div className="bg-white border-b-2 border-gray-300 w-full z-40 shrink-0">

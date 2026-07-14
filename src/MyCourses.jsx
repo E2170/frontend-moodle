@@ -1,17 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import akuzemLogo from "./assets/akuzem-lg.png";
-import Header from "./Header";
 export default function MyCourses() {
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const [userInfo, setUserInfo] = useState({
-    fullname: "Yükleniyor...",
-    userpictureurl: "",
-  });
-  const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
-
+    const [courses, setCourses] = useState([]);
+  
   // Filtre durumları
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -30,7 +24,7 @@ export default function MyCourses() {
       const userData = await userResponse.json();
 
       if (userData && userData.userid) {
-        setUserInfo(userData);
+        
 
         // Kullanıcının kayıtlı olduğu dersleri al
         const coursesResponse = await fetch(
@@ -39,41 +33,7 @@ export default function MyCourses() {
         const coursesData = await coursesResponse.json();
 
         if (Array.isArray(coursesData)) {
-          const coursesWithProgress = await Promise.all(
-            coursesData.map(async (course) => {
-              let progress = 0;
-              try {
-                const progRes = await fetch(`/api/webservice/rest/server.php`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                  body: `wstoken=${token}&wsfunction=core_completion_get_activities_completion_status&courseid=${course.id}&userid=${userData.userid}&moodlewsrestformat=json`
-                });
-                const progData = await progRes.json();
-                if (progData && progData.statuses) {
-                  const trackable = progData.statuses.filter(s => s.hascompletion !== false && s.isautomatic !== undefined || s.tracking > 0 || s.modname === 'assign' || s.modname === 'quiz');
-                  if (trackable.length > 0) {
-                    const completed = trackable.filter(s => s.state === 1 || s.state === 2).length;
-                    progress = Math.round((completed / trackable.length) * 100);
-                  } else {
-                    progress = course.progress || 0;
-                  }
-                } else {
-                  progress = course.progress || 0;
-                }
-              } catch (e) {
-                progress = course.progress || 0;
-              }
-
-              return {
-                ...course,
-                categoryname: course.categoryname || "Bilgisayar Mühendisliği",
-                term: "2023-2024 BAHAR",
-                teacher: "Öğretim Elemanı",
-                progress: progress,
-              };
-            })
-          );
-          setCourses(coursesWithProgress);
+          setCourses(coursesData);
         }
       }
     } catch (error) {
@@ -87,18 +47,13 @@ export default function MyCourses() {
     fetchCoursesData();
   }, [fetchCoursesData]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("moodle_token");
-    navigate("/");
-  };
-
+  
   const filteredCourses = courses.filter((c) =>
     c.fullname.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="min-h-screen bg-[#fcfcfc] font-sans text-[#495057] antialiased flex flex-col">
-      <Header />
 
       {/* Ana İçerik */}
       <main className="max-w-[1200px] w-full mx-auto px-4 py-6 flex-1">

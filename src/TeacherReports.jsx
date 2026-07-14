@@ -1,22 +1,14 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import akuzemLogo from "./assets/akuzem-lg.png"; 
-import Header from "./Header";
 
 export default function TeacherReports() {
   const navigate = useNavigate();
 
   // Temel Durum Yönetimleri
-  const [userInfo, setUserInfo] = useState({
-    fullname: "Yükleniyor...",
-    userpictureurl: "",
-  });
-  const [loading, setLoading] = useState(true);
-
+    
   // Menü Durumları
-  const [isCoursesOpen, setIsCoursesOpen] = useState(false);
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false); // Sağ üst profil açılır menüsü
-
+  
+  
   const fetchReportsData = useCallback(async () => {
     const token = localStorage.getItem("moodle_token");
     if (!token) {
@@ -31,12 +23,10 @@ export default function TeacherReports() {
       const userData = await userResponse.json();
 
       if (userData && userData.userid) {
-        setUserInfo(userData);
+        
       }
     } catch (error) {
       console.error("Raporlar kullanıcı verisi hatası:", error);
-    } finally {
-      setLoading(false);
     }
   }, [navigate]);
 
@@ -45,23 +35,10 @@ export default function TeacherReports() {
     fetchReportsData();
   }, [fetchReportsData]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("moodle_token");
-    localStorage.removeItem("user_role");
-    navigate("/");
-  };
-
-  const getInitials = (name) => {
-    if (!name || name === "Yükleniyor...") return "AE";
-    const parts = name.trim().split(" ");
-    if (parts.length >= 2)
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    return name.slice(0, 2).toUpperCase();
-  };
-
+  
+  
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-gray-700 antialiased overflow-y-auto">
-      <Header />
 
       {/* ANA İÇERİK - Raporlar */}
       <main className="max-w-350 mx-auto p-8">

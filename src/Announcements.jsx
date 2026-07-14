@@ -1,10 +1,8 @@
 import React from "react";
-import Header from "./Header";
 
 export default function Announcements() {
   return (
     <div className="min-h-screen bg-[#fcfcfc] font-sans text-[#495057] antialiased flex flex-col">
-      <Header />
       <main className="max-w-[1200px] w-full mx-auto px-4 py-8 flex-1">
         <div className="mb-6">
           <h2 className="text-[22px] font-medium text-[#212529]">Duyurular</h2>

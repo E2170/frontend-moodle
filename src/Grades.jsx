@@ -1,17 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import akuzemLogo from "./assets/akuzem-lg.png";
-import Header from "./Header";
 export default function Grades() {
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   // Temel Durum Yönetimleri
-  const [userInfo, setUserInfo] = useState({
-    fullname: "Yükleniyor...",
-    userpictureurl: "",
-  });
-  const [loading, setLoading] = useState(true);
-  const [coursesWithGrades, setCoursesWithGrades] = useState([]);
+      const [coursesWithGrades, setCoursesWithGrades] = useState([]);
 
   const fetchGradesData = useCallback(async () => {
     const token = localStorage.getItem("moodle_token");
@@ -28,7 +22,7 @@ export default function Grades() {
       const userData = await userResponse.json();
 
       if (userData && userData.userid) {
-        setUserInfo(userData);
+        
 
         // 2. Kullanıcının kayıtlı olduğu dersleri al
         const coursesResponse = await fetch(
@@ -74,14 +68,9 @@ export default function Grades() {
     fetchGradesData();
   }, [fetchGradesData]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("moodle_token");
-    navigate("/");
-  };
-
+  
   return (
     <div className="min-h-screen bg-[#fcfcfc] font-sans text-[#495057] antialiased overflow-y-auto flex flex-col">
-      <Header />
 
       {/* Ana İçerik - Not Çizelgem Alanı */}
       <main className="max-w-[1200px] w-full mx-auto px-4 py-8 flex-1">

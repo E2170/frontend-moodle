@@ -1,1 +1,0 @@
-const test = async () => { const res = await fetch('https://moodle.argeyazilim.tr/webservice/rest/server.php', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'wstoken=ac8d229c4e406ba9252a88a1b9f01fb8&wsfunction=tool_mobile_get_autologin_key&moodlewsrestformat=json' }); const text = await res.json(); console.log(text); }; test();
