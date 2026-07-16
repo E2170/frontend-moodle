@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./AuthContext";
 import ProtectedRoute from "./ProtectedRoute";
 import Layout from "./Layout";
+import AlertModal from "./AlertModal";
 
 // Sayfaları dinamik (lazy) yükle - İlk yükleme (Initial Load) hızını artırır
 const LoginPage = React.lazy(() => import("./LoginPage"));
@@ -27,6 +28,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <AlertModal />
         <Suspense fallback={
           <div className="flex flex-col h-screen w-full items-center justify-center bg-gray-50 text-blue-600">
             <div className="w-12 h-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin mb-4" />

@@ -3,22 +3,8 @@ import { useState, useEffect, useRef } from "react";
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
-const moodlePost = async (token, wsfunction, extraParams = {}) => {
-  const params = new URLSearchParams({
-    wstoken: token,
-    wsfunction,
-    moodlewsrestformat: "json",
-  });
-  for (const [key, value] of Object.entries(extraParams)) {
-    params.append(key, String(value));
-  }
-  const res = await fetch("/api/webservice/rest/server.php", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString(),
-  });
-  return res.json();
-};
+import { moodlePost } from "./moodleApi";
+// Removed local moodlePost
 
 
 const formatBytes = (bytes) => {
@@ -113,6 +99,7 @@ function AssignViewer({ mod, token, userId }) {
     const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [nowSec] = useState(() => Date.now() / 1000);
   const fileRef = useRef(null);
 
   const loadData = async () => {
@@ -217,7 +204,7 @@ function AssignViewer({ mod, token, userId }) {
       <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
         <div className="flex flex-wrap gap-2 mb-4">
           {dueTs ? (
-            <span className={`text-[12px] font-semibold px-3 py-1 rounded-full ${dueTs < Date.now()/1000 ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+            <span className={`text-[12px] font-semibold px-3 py-1 rounded-full ${dueTs < nowSec ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
               📅 Son Teslim: {formatDate(dueTs)}
             </span>
           ) : (
@@ -341,6 +328,10 @@ function QuizViewer({ mod, token, userId, courseId }) {
   const [currentAttempt, setCurrentAttempt] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [quizLoading, setQuizLoading] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
+
+  // Özel Onay Penceresi Modalı
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState(null);
   const [timeLeft, setTimeLeft] = useState(null);
@@ -366,6 +357,49 @@ function QuizViewer({ mod, token, userId, courseId }) {
       setAttempts(ar.attempts || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
+  };
+
+  const collectAnswers = () => {
+    const container = containerRef.current;
+    if (!container) return [];
+    const formData = [];
+    const radioGroups = {};
+    container.querySelectorAll('input[type="radio"]').forEach(r => {
+      if (r.checked) radioGroups[r.name] = r.value;
+    });
+    Object.entries(radioGroups).forEach(([name, value]) => formData.push({ name, value }));
+    container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      formData.push({ name: cb.name, value: cb.checked ? cb.value : "0" });
+    });
+    container.querySelectorAll('input[type="text"],input[type="number"],input[type="hidden"],select,textarea').forEach(el => {
+      if (el.name && !el.name.startsWith('_:')) formData.push({ name: el.name, value: el.value });
+    });
+    return formData;
+  };
+
+  const handleSubmit = async (finish = true) => {
+    setSubmitLoading(true);
+    setError(null);
+    if (finish) clearInterval(timerRef.current);
+    try {
+      const formData = collectAnswers();
+      const params = { attemptid: currentAttempt?.id, finishattempt: finish ? 1 : 0, timeup: timeLeft === 0 ? 1 : 0 };
+      formData.forEach((d, i) => { params[`data[${i}][name]`] = d.name; params[`data[${i}][value]`] = d.value; });
+      const resData = await moodlePost(token, "mod_quiz_process_attempt", params);
+      if (resData.exception) throw new Error(resData.message || "Gönderim hatası.");
+      
+      if (finish) {
+        const review = await moodlePost(token, "mod_quiz_get_attempt_review", { attemptid: currentAttempt?.id });
+        setReviewData(review);
+        setMode("finished");
+        await loadData();
+      } else {
+        setError("Cevaplar başarıyla kaydedildi."); 
+        setTimeout(() => setError(null), 3000);
+      }
+    } catch (e) {
+      setError("Hata: " + e.message);
+    } finally { setSubmitLoading(false); }
   };
 
   useEffect(() => { loadData(); }, [mod.instance, courseId, userId]); // eslint-disable-line
@@ -418,7 +452,7 @@ function QuizViewer({ mod, token, userId, courseId }) {
         attemptObj = res.attempt;
       }
       if (!attemptObj || !attemptObj.id) {
-          console.error("Geçersiz attemptObj:", attemptObj, "Tam cevap:", res || ongoing);
+          console.error("Geçersiz attemptObj:", attemptObj);
           throw new Error("Sınav başlatıldı ancak attempt kimliği (id) alınamadı. Lütfen sayfayı yenileyip tekrar deneyin.");
       }
 
@@ -436,24 +470,6 @@ function QuizViewer({ mod, token, userId, courseId }) {
     } finally { setQuizLoading(false); }
   };
 
-  const collectAnswers = () => {
-    const container = containerRef.current;
-    if (!container) return [];
-    const formData = [];
-    const radioGroups = {};
-    container.querySelectorAll('input[type="radio"]').forEach(r => {
-      if (r.checked) radioGroups[r.name] = r.value;
-    });
-    Object.entries(radioGroups).forEach(([name, value]) => formData.push({ name, value }));
-    container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-      formData.push({ name: cb.name, value: cb.checked ? cb.value : "0" });
-    });
-    container.querySelectorAll('input[type="text"],input[type="number"],input[type="hidden"],select,textarea').forEach(el => {
-      if (el.name && !el.name.startsWith('_:')) formData.push({ name: el.name, value: el.value });
-    });
-    return formData;
-  };
-
   const navigatePage = async (targetPage) => {
     setIsNavigating(true);
     setError(null);
@@ -461,8 +477,8 @@ function QuizViewer({ mod, token, userId, courseId }) {
       const formData = collectAnswers();
       const params = { attemptid: currentAttempt.id, finishattempt: 0, timeup: 0 };
       formData.forEach((d, i) => { params[`data[${i}][name]`] = d.name; params[`data[${i}][value]`] = d.value; });
-      const res = await moodlePost(token, "mod_quiz_process_attempt", params);
-      if (res.exception) throw new Error(res.message || "Cevaplar kaydedilemedi.");
+      const resData = await moodlePost(token, "mod_quiz_process_attempt", params);
+      if (resData.exception) throw new Error(resData.message || "Cevaplar kaydedilemedi.");
       
       await fetchPage(currentAttempt.id, targetPage);
     } catch (e) {
@@ -470,31 +486,6 @@ function QuizViewer({ mod, token, userId, courseId }) {
     } finally {
       setIsNavigating(false);
     }
-  };
-
-  const handleSubmit = async (finish = true) => {
-    setSubmitLoading(true);
-    setError(null);
-    if (finish) clearInterval(timerRef.current);
-    try {
-      const formData = collectAnswers();
-      const params = { attemptid: currentAttempt.id, finishattempt: finish ? 1 : 0, timeup: timeLeft === 0 ? 1 : 0 };
-      formData.forEach((d, i) => { params[`data[${i}][name]`] = d.name; params[`data[${i}][value]`] = d.value; });
-      const res = await moodlePost(token, "mod_quiz_process_attempt", params);
-      if (res.exception) throw new Error(res.message || "Gönderim hatası.");
-      
-      if (finish) {
-        const review = await moodlePost(token, "mod_quiz_get_attempt_review", { attemptid: currentAttempt.id });
-        setReviewData(review);
-        setMode("finished");
-        await loadData();
-      } else {
-        setError("Cevaplar başarıyla kaydedildi."); // Geçici bilgi mesajı
-        setTimeout(() => setError(null), 3000);
-      }
-    } catch (e) {
-      setError("Hata: " + e.message);
-    } finally { setSubmitLoading(false); }
   };
 
   if (loading) return <LoadingSpinner />;
@@ -602,13 +593,48 @@ function QuizViewer({ mod, token, userId, courseId }) {
             </button>
           ) : (
             <button
-              onClick={() => { if (window.confirm("Sınavı bitirmek istediğinizden emin misiniz? Bu işlem geri alınamaz.")) handleSubmit(true); }}
+              onClick={() => setIsConfirmModalOpen(true)}
               disabled={submitLoading || isNavigating}
               className="flex-[2] py-3 rounded-xl text-[14px] font-semibold text-white bg-[#495057] hover:bg-[#343a40] transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
               {submitLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Gönderiliyor...</> : "✅ Sınavı Bitir ve Gönder"}
             </button>
           )}
         </div>
+
+        {/* Sınav Bitirme Onay Modalı */}
+        {isConfirmModalOpen && (
+          <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden animate-zoom-in">
+              <div className="p-5 flex items-center gap-3 border-b border-gray-100 bg-orange-50/50">
+                <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 shrink-0">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                </div>
+                <h3 className="font-bold text-gray-800 text-lg">Sınavı Bitir</h3>
+              </div>
+              <div className="p-6 text-gray-600 text-sm font-medium text-center">
+                Sınavı bitirmek ve cevaplarınızı göndermek istediğinizden emin misiniz? Bu işlem geri alınamaz ve sınavınız sonlandırılır.
+              </div>
+              <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+                <button 
+                  onClick={() => setIsConfirmModalOpen(false)} 
+                  className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-100 transition-colors shadow-sm"
+                >
+                  Vazgeç
+                </button>
+                <button 
+                  onClick={() => {
+                    setIsConfirmModalOpen(false);
+                    handleSubmit(true);
+                  }} 
+                  className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  Evet, Sınavı Bitir
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1394,7 +1420,16 @@ function WikiViewer({ mod, token, courseId }) {
   const [pages, setPages] = useState([]);
   const [activePage, setActivePage] = useState(null);
   const [pageContent, setPageContent] = useState(null);
-    const [contentLoading, setContentLoading] = useState(false);
+  const [contentLoading, setContentLoading] = useState(false);
+
+  const loadPageContent = async (pageId) => {
+    setContentLoading(true);
+    try {
+      const r = await moodlePost(token, "mod_wiki_get_page_contents", { pageid: pageId });
+      setPageContent(r.page?.cachedcontent || r.page?.content || null);
+    } catch (e) { console.error(e); }
+    finally { setContentLoading(false); }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -1415,14 +1450,6 @@ function WikiViewer({ mod, token, courseId }) {
     load();
   }, [mod.id, courseId]); // eslint-disable-line
 
-  const loadPageContent = async (pageId) => {
-    setContentLoading(true);
-    try {
-      const r = await moodlePost(token, "mod_wiki_get_page_contents", { pageid: pageId });
-      setPageContent(r.page?.cachedcontent || r.page?.content || null);
-    } catch (e) { console.error(e); }
-    finally { setContentLoading(false); }
-  };
 
   if (loading) return <LoadingSpinner />;
 

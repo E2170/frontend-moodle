@@ -19,7 +19,13 @@ try {
 
     $category = question_get_default_category($context->id);
     if (!$category) {
-        throw new Exception("Ders için varsayılan soru kategorisi bulunamadı.");
+        // Eğer kategori henüz oluşturulmamışsa (örneğin hoca hiç soru bankasına girmemişse) otomatik oluştur
+        question_make_default_categories(array($context));
+        $category = question_get_default_category($context->id);
+        
+        if (!$category) {
+            throw new Exception("Ders için varsayılan soru kategorisi bulunamadı ve otomatik olarak oluşturulamadı.");
+        }
     }
 
     $tmpfile = tempnam(sys_get_temp_dir(), "aiken");

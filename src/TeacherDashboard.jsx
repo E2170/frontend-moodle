@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { moodlePost } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 
 export default function TeacherDashboard() {
@@ -19,10 +20,7 @@ export default function TeacherDashboard() {
     }
 
     try {
-      const userResponse = await fetch(
-        `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json` },
-      );
-      const userData = await userResponse.json();
+      const userData = await moodlePost(token, "core_webservice_get_site_info");
 
       if (userData && userData.userid) {
         const [
@@ -31,15 +29,14 @@ export default function TeacherDashboard() {
           announcementsResponse,
           messagesResponse
         ] = await Promise.all([
-          fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_enrol_get_users_courses&userid=${userData.userid}&moodlewsrestformat=json` }),
-          fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_calendar_get_action_events_by_timesort&moodlewsrestformat=json` }),
-          fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=mod_forum_get_forum_discussions&forumid=2&moodlewsrestformat=json` }),
-          fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_message_get_conversations&userid=${userData.userid}&moodlewsrestformat=json` })
+          moodlePost(token, "core_enrol_get_users_courses", { userid: userData.userid }).catch(e => { console.error("courses error", e); return null; }),
+          moodlePost(token, "core_calendar_get_action_events_by_timesort").catch(e => { console.error("timeline error", e); return null; }),
+          moodlePost(token, "mod_forum_get_forum_discussions", { forumid: "2" }).catch(e => { console.error("forum error", e); return null; }),
+          moodlePost(token, "core_message_get_conversations", { userid: userData.userid }).catch(e => { console.error("messages error", e); return null; })
         ]);
 
         const safeParse = async (res) => {
-          if (!res.ok) return null;
-          try { return await res.json(); } catch (_e) { return null; }
+          return res ? res : null;
         };
 
         const coursesData = await safeParse(coursesResponse);
@@ -197,7 +194,7 @@ export default function TeacherDashboard() {
                     </button>
                   </div>
                 </div>
-                <div className="p-4 min-h-[120px] text-[14px] text-[#212529] max-h-[300px] overflow-y-auto">
+                <div className="p-4 min-h-[120px] text-[14px] text-[#212529]">
                   {announcements.length === 0 ? (
                     <p className="text-[13px] text-[#6c757d]">Herhangi bir duyuru bulunamadı.</p>
                   ) : (
@@ -226,7 +223,7 @@ export default function TeacherDashboard() {
                     </button>
                   </div>
                 </div>
-                <div className="p-4 max-h-[300px] overflow-y-auto">
+                <div className="p-4">
                   {conversations.length === 0 ? (
                     <p className="text-[13px] text-[#6c757d]">Herhangi bir mesajınız bulunamadı.</p>
                   ) : (
@@ -300,7 +297,7 @@ export default function TeacherDashboard() {
                   Tümü <svg className="w-3.5 h-3.5 ml-1 text-[#646462]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
                 </button>
               </div>
-              <div className="p-4" style={{ maxHeight: "calc(-2em + 515px)", minHeight: "300px", overflowY: "auto" }}>
+              <div className="p-4" style={{ minHeight: "300px" }}>
                 <h4 className="text-[15px] font-bold text-[#e03a3c] border-b-2 border-[#e03a3c] inline-block pb-1 mb-4">Yaklaşan Etkinlikler</h4>
                 {loading ? (
                   <div className="text-[12px] text-gray-500">Yükleniyor...</div>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { moodlePost } from "./moodleApi";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import akuzemLogo from "./assets/akuzem-lg.png";
@@ -42,33 +43,24 @@ export default function CourseDetail() {
 
     try {
       const safeParse = async (res) => {
-        if (!res || !res.ok) return null;
-        try { return await res.json(); } catch (e) { return null; }
+        return res ? res : null;
       };
 
-      // UserId'ye bağımlı OLMAYAN istekleri hemen başlatıyoruz
-      const contentsPromise = fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_course_get_contents&courseid=${courseId}&moodlewsrestformat=json` });
-      const courseFieldPromise = fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_course_get_courses_by_field&field=id&value=${courseId}&moodlewsrestformat=json` });
-
       // User bilgisini çekiyoruz
-      const userRes = await fetch(
-        `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json` }
-      );
-      const userData = await userRes.json();
+      const userData = await moodlePost(token, "core_webservice_get_site_info");
       setUserInfo(userData);
 
       if (userData && userData.userid) {
-        // UserId'ye bağımlı olan istekleri başlatıyoruz
-        const coursesPromise = fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_enrol_get_users_courses&userid=${userData.userid}&moodlewsrestformat=json` });
-        const completionPromise = fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_completion_get_activities_completion_status&courseid=${courseId}&userid=${userData.userid}&moodlewsrestformat=json` });
-
-        // Tüm isteklerin sonuçlanmasını paralel olarak tek seferde bekliyoruz
-        const [coursesRes, completionRes, contentsRes, courseFieldRes] = await Promise.all([
-          coursesPromise, completionPromise, contentsPromise, courseFieldPromise
-        ]);
-
-        const [coursesData, completionData, contentsData, courseFieldData] = await Promise.all([
-          safeParse(coursesRes), safeParse(completionRes), safeParse(contentsRes), safeParse(courseFieldRes)
+        const [
+          coursesData,
+          completionData,
+          contentsData,
+          courseFieldData
+        ] = await Promise.all([
+          moodlePost(token, "core_enrol_get_users_courses", { userid: userData.userid }).catch(e => null),
+          moodlePost(token, "core_completion_get_activities_completion_status", { courseid: courseId, userid: userData.userid }).catch(e => null),
+          moodlePost(token, "core_course_get_contents", { courseid: courseId }).catch(e => null),
+          moodlePost(token, "core_course_get_courses_by_field", { field: "id", value: courseId }).catch(e => null)
         ]);
 
         if (Array.isArray(coursesData)) {
@@ -298,7 +290,7 @@ export default function CourseDetail() {
             </div>
 
             {/* İçerik */}
-            <div className="flex-1 flex flex-col items-center justify-center pt-10">
+            <div className="flex-1 flex flex-col items-center pt-6">
               {activeTab === "ders-icerigi" &&
                 (selectedActivity ? (
                   <div className="w-full pb-10">

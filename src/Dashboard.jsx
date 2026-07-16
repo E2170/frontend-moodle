@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { moodlePost } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import CourseCard from "./components/CourseCard";
@@ -27,7 +28,10 @@ export default function Dashboard() {
 
   
   const fetchDashboardData = useCallback(async () => {
-    if (!token || !userInfo || !userInfo.userid) return;
+    if (!token || !userInfo || !userInfo.userid) {
+      setLoading(false);
+      return;
+    }
 
     try {
       const [
@@ -36,16 +40,15 @@ export default function Dashboard() {
         announcementsResponse,
         messagesResponse
       ] = await Promise.all([
-        fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_enrol_get_users_courses&userid=${userInfo.userid}&moodlewsrestformat=json` }),
-        fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_calendar_get_action_events_by_timesort&moodlewsrestformat=json` }),
-        fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=mod_forum_get_forum_discussions&forumid=2&moodlewsrestformat=json` }),
-        fetch(`/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_message_get_conversations&userid=${userInfo.userid}&moodlewsrestformat=json` })
+        moodlePost(token, "core_enrol_get_users_courses", { userid: userInfo.userid }).catch(e => { console.error("courses error", e); return null; }),
+        moodlePost(token, "core_calendar_get_action_events_by_timesort").catch(e => { console.error("timeline error", e); return null; }),
+        moodlePost(token, "mod_forum_get_forum_discussions", { forumid: "2" }).catch(e => { console.error("forum error", e); return null; }),
+        moodlePost(token, "core_message_get_conversations", { userid: userInfo.userid }).catch(e => { console.error("messages error", e); return null; })
       ]);
 
-          const safeParse = async (res) => {
-            if (!res.ok) return null;
-            try { return await res.json(); } catch (e) { return null; }
-          };
+      const safeParse = async (res) => {
+        return res ? res : null;
+      };
 
           const coursesData = await safeParse(coursesResponse);
           const timelineData = await safeParse(timelineResponse);
@@ -162,10 +165,10 @@ export default function Dashboard() {
     menuTab === "active" ? activeCourses : archivedCourses;
 
   return (
-    <div className="min-h-screen bg-white font-sans text-gray-800 antialiased overflow-hidden">
+    <div className="bg-white font-sans text-gray-800 antialiased h-full">
       {/* NAVBAR */}
 
-      <main className="w-full max-w-[1400px] mx-auto px-4 sm:px-[6%] py-8 h-[calc(100vh-60px)] overflow-y-auto">
+      <main className="w-full max-w-[1400px] mx-auto px-4 sm:px-[6%] py-8">
         
         {error && (
           <div className="bg-red-50 border border-red-200 p-4 mb-6 rounded-[8px] flex items-center gap-3">
@@ -219,7 +222,7 @@ export default function Dashboard() {
                     Tümü <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span>
                   </button>
                 </div>
-                <div className="p-5 flex-1 max-h-[300px] overflow-y-auto">
+                <div className="p-5 flex-1">
                   <h4 className="text-[13px] text-[#e83e8c] font-bold mb-4 border-b border-[#e83e8c] inline-block pb-0.5">Geçmiş</h4>
                   {loading ? (
                     <div className="text-[12px] text-gray-500">Yükleniyor...</div>
@@ -227,9 +230,13 @@ export default function Dashboard() {
                     <div className="text-[12px] text-gray-500">Yaklaşan aktiviteniz yoktur.</div>
                   ) : (
                     timelineEvents.slice(0, 4).map(event => (
-                      <div key={event.id} className="border-l-[3px] border-[#dc3545] pl-3 py-1 mb-4">
+                      <div 
+                        key={event.id} 
+                        onClick={() => { if (event.course?.id) navigate(`/course/${event.course.id}`) }}
+                        className="border-l-[3px] border-[#dc3545] pl-3 py-1 mb-4 cursor-pointer hover:bg-gray-50 transition-colors rounded-r-md"
+                      >
                         <div className="text-[11px] text-[#e83e8c] font-medium mb-0.5 opacity-80">{formatMoodleDate(event.timesort)}</div>
-                        <div className="text-[13px] font-bold text-[#212529] leading-tight">{event.name}</div>
+                        <div className="text-[13px] font-bold text-[#212529] leading-tight group-hover:text-blue-600">{event.name}</div>
                         <div className="text-[11px] text-[#6c757d] mt-1">{event.course?.fullname}</div>
                       </div>
                     ))
@@ -250,7 +257,7 @@ export default function Dashboard() {
                  <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{virtualClassroomEvents.length}</span>
                </div>
                <div className="flex items-center gap-3">
-                 <span className="text-[#adb5bd] text-[16px] cursor-pointer hover:text-[#6c757d]">👁</span>
+
                  <button onClick={() => navigate("/calendar")} className="text-[12px] text-[#212529] font-medium flex items-center hover:text-[#0056b3]">Tümü <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span></button>
                </div>
             </div>
@@ -258,7 +265,7 @@ export default function Dashboard() {
               {virtualClassroomEvents.length === 0 ? (
                 <p className="text-[13px] text-[#6c757d]">Yaklaşan sanal sınıf aktiviteniz yoktur.</p>
               ) : (
-                 virtualClassroomEvents.map(event => (
+                 virtualClassroomEvents.slice(0, 4).map(event => (
                    <div key={event.id} className="mb-3 border-b border-[#f8f9fa] pb-3 last:border-0 last:pb-0">
                      <div className="text-[13px] font-bold text-[#212529]">{event.name}</div>
                      <div className="text-[11px] text-[#6c757d] mt-0.5">{formatMoodleDate(event.timesort)}</div>
@@ -276,7 +283,7 @@ export default function Dashboard() {
                  <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{totalActivities + activityStats.completed + activityStats.ungraded}</span>
                </div>
                <div className="flex items-center gap-3">
-                 <span className="text-[#adb5bd] text-[16px] cursor-pointer hover:text-[#6c757d]">👁</span>
+
                  <button onClick={() => navigate("/calendar")} className="text-[12px] text-[#212529] font-medium flex items-center hover:text-[#0056b3]">Tümü <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span></button>
                </div>
             </div>
@@ -308,7 +315,7 @@ export default function Dashboard() {
                  <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{unreadMessagesCount}</span>
                </div>
                <div className="flex items-center gap-3">
-                 <span className="text-[#adb5bd] text-[16px] cursor-pointer hover:text-[#6c757d]">👁</span>
+
                  <button onClick={() => navigate("/messages")} className="text-[12px] text-[#212529] font-medium flex items-center hover:text-[#0056b3]">Tümü <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span></button>
                </div>
             </div>
@@ -339,15 +346,15 @@ export default function Dashboard() {
                  <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{announcements.length}</span>
                </div>
                <div className="flex items-center gap-3">
-                 <span className="text-[#adb5bd] text-[16px] cursor-pointer hover:text-[#6c757d]">👁</span>
+
                  <button onClick={() => navigate("/announcements")} className="text-[12px] text-[#212529] font-medium flex items-center hover:text-[#0056b3]">Tümü <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span></button>
                </div>
             </div>
-            <div className="p-5 flex-1 max-h-[250px] overflow-auto">
+            <div className="p-5 flex-1">
                {announcements.length === 0 ? (
                  <p className="text-[13px] text-[#6c757d]">Duyurunuz bulunmamaktadır.</p>
                ) : (
-                 announcements.map(item => (
+                 announcements.slice(0, 4).map(item => (
                    <div key={item.id} className="mb-4 pb-4 border-b border-[#f8f9fa] last:border-0 last:pb-0 last:mb-0">
                      <h4 className="text-[12px] font-bold text-[#212529] mb-1.5 leading-tight uppercase">📍 {item.name}</h4>
                      <p className="text-[12px] text-[#6c757d] leading-snug line-clamp-3">{stripHtmlTags(item.message)}</p>
@@ -366,7 +373,7 @@ export default function Dashboard() {
                  <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{examEvents.length}</span>
                </div>
                <div className="flex items-center gap-3">
-                 <span className="text-[#adb5bd] text-[16px] cursor-pointer hover:text-[#6c757d]">👁</span>
+
                  <button onClick={() => navigate("/calendar")} className="text-[12px] text-[#212529] font-medium flex items-center hover:text-[#0056b3]">Tümü <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span></button>
                </div>
             </div>
@@ -374,7 +381,7 @@ export default function Dashboard() {
               {examEvents.length === 0 ? (
                 <p className="text-[13px] text-[#6c757d]">Yaklaşan sınav aktiviteniz yoktur.</p>
               ) : (
-                 examEvents.map(event => (
+                 examEvents.slice(0, 4).map(event => (
                    <div key={event.id} className="mb-3 border-b border-[#f8f9fa] pb-3 last:border-0 last:pb-0">
                      <div className="text-[13px] font-bold text-[#212529]">{event.name}</div>
                      <div className="text-[11px] text-[#6c757d] mt-0.5">{formatMoodleDate(event.timesort)}</div>
@@ -392,7 +399,7 @@ export default function Dashboard() {
                  <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{assignEvents.length}</span>
                </div>
                <div className="flex items-center gap-3">
-                 <span className="text-[#adb5bd] text-[16px] cursor-pointer hover:text-[#6c757d]">👁</span>
+
                  <button onClick={() => navigate("/calendar")} className="text-[12px] text-[#212529] font-medium flex items-center hover:text-[#0056b3]">Tümü <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span></button>
                </div>
             </div>
@@ -400,7 +407,7 @@ export default function Dashboard() {
               {assignEvents.length === 0 ? (
                 <p className="text-[13px] text-[#6c757d]">Yaklaşan ödev aktiviteniz yoktur.</p>
               ) : (
-                 assignEvents.map(event => (
+                 assignEvents.slice(0, 4).map(event => (
                    <div key={event.id} className="mb-3 border-b border-[#f8f9fa] pb-3 last:border-0 last:pb-0">
                      <div className="text-[13px] font-bold text-[#212529]">{event.name}</div>
                      <div className="text-[11px] text-[#6c757d] mt-0.5">{formatMoodleDate(event.timesort)}</div>

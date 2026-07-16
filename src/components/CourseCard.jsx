@@ -55,10 +55,7 @@ export default function CourseCard({ course }) {
         <div className="w-[26px] h-[26px] rounded-full bg-[#945cbf] text-white flex items-center justify-center text-[10px] font-bold shadow-sm">
           {getCourseInitials(course.fullname)}
         </div>
-        <div className="flex gap-2 text-[#adb5bd] opacity-0 group-hover:opacity-100 transition-opacity">
-            <span className="text-[16px] hover:text-[#6c757d]">⚙</span>
-            <span className="text-[16px] hover:text-[#6c757d]">⏱</span>
-        </div>
+
       </div>
     </div>
   );

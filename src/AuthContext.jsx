@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { moodlePost } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 
 const AuthContext = createContext();
@@ -19,6 +20,21 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    const handleTokenExpired = () => {
+      logout();
+      window.dispatchEvent(new CustomEvent("show_alert", {
+        detail: {
+          title: "Oturum Süresi Doldu",
+          message: "Güvenliğiniz için oturumunuz sonlandırıldı. Lütfen tekrar giriş yapın.",
+          type: "error"
+        }
+      }));
+    };
+    window.addEventListener("moodle_token_expired", handleTokenExpired);
+    return () => window.removeEventListener("moodle_token_expired", handleTokenExpired);
+  }, [logout]);
+
+  useEffect(() => {
     if (!token) {
       setLoading(false);
       return;
@@ -26,17 +42,7 @@ export function AuthProvider({ children }) {
 
     const fetchUserInfo = async () => {
       try {
-        const response = await fetch(`/api/webservice/rest/server.php`, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: `wstoken=${token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json`
-        });
-
-        if (!response.ok) {
-          throw new Error("Moodle servisine ulaşılamadı.");
-        }
-
-        const data = await response.json();
+        const data = await moodlePost(token, "core_webservice_get_site_info");
         
         if (data.errorcode) {
           throw new Error(data.message || "Oturum süresi dolmuş veya geçersiz.");

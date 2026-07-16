@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from "react";
+import { moodlePost } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 
 export default function TeacherReports() {
@@ -17,14 +18,7 @@ export default function TeacherReports() {
     }
 
     try {
-      const userResponse = await fetch(
-        `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json` },
-      );
-      const userData = await userResponse.json();
 
-      if (userData && userData.userid) {
-        
-      }
     } catch (error) {
       console.error("Raporlar kullanıcı verisi hatası:", error);
     }

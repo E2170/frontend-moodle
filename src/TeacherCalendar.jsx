@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { moodlePost } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 
 export default function TeacherCalendar() {
@@ -9,7 +10,7 @@ export default function TeacherCalendar() {
       const [events, setEvents] = useState([]);
 
   // Navigasyon ve Tarih Yönetimi (Anlık tarih referans alınır)
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 6, 6)); // Defaulting to July 6, 2026 to match screenshot
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [viewType, setViewType] = useState("HAFTA"); // GÜN, HAFTA, AY
 
   // Aktivite Filtreleri
@@ -41,7 +42,7 @@ export default function TeacherCalendar() {
         dayName: dayNames[i],
         date: clone.getDate().toString().padStart(2, "0"),
         fullDate: clone,
-        isCurrent: clone.toDateString() === new Date(2026, 6, 6).toDateString(), // Mocking today as July 6, 2026
+        isCurrent: clone.toDateString() === new Date().toDateString(),
       });
     }
     return days;
@@ -61,15 +62,7 @@ export default function TeacherCalendar() {
     }
 
     try {
-      const userResponse = await fetch(
-        `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json` },
-      );
-      await userResponse.json();
-
-      const eventsResponse = await fetch(
-        `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_calendar_get_action_events_by_timesort&moodlewsrestformat=json` },
-      );
-      const eventsData = await eventsResponse.json();
+      const eventsData = await moodlePost(token, "core_calendar_get_action_events_by_timesort");
 
       if (eventsData && Array.isArray(eventsData.events)) {
         setEvents(eventsData.events);
@@ -101,7 +94,7 @@ export default function TeacherCalendar() {
   };
 
   const handleToday = () => {
-    setCurrentDate(new Date(2026, 6, 6)); // Mocking today
+    setCurrentDate(new Date()); // Mocking today
   };
 
   const formatMonthYear = (date) => {
@@ -144,9 +137,9 @@ export default function TeacherCalendar() {
     <div className="h-screen flex flex-col bg-[#f8fafc] font-sans text-[#495057] antialiased overflow-hidden">
 
       {/* Ana Gövde */}
-      <div className="flex flex-1 overflow-hidden h-full">
+      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden h-full">
         {/* Sol Panel (Sidebar) */}
-        <aside className="w-[280px] bg-[#2d3246] text-white flex flex-col shrink-0 overflow-y-auto">
+        <aside className="w-full lg:w-[280px] bg-[#2d3246] text-white flex flex-col shrink-0 overflow-y-auto max-h-[300px] lg:max-h-full">
           {/* Takvim Başlık */}
           <div className="h-[46px] border-b border-[#3e445a] flex items-center px-4 shrink-0">
             <span className="text-[15px] font-semibold text-white">Takvim</span>
@@ -159,7 +152,7 @@ export default function TeacherCalendar() {
               <div className="flex items-center gap-1">
                 <span>July</span>
                 <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                <span>2026</span>
+                <span>{currentDate.getFullYear()}</span>
               </div>
               <button className="text-gray-400 hover:text-white">&gt;</button>
             </div>
@@ -263,7 +256,7 @@ export default function TeacherCalendar() {
         </aside>
 
         {/* Ana Takvim Alanı */}
-        <main className="flex-1 flex flex-col bg-white overflow-hidden relative border-l border-gray-200">
+        <main className="flex-1 flex flex-col bg-white overflow-x-auto overflow-y-hidden relative border-l border-gray-200">
           {/* Üst Araç Çubuğu */}
           <div className="flex items-center justify-between px-4 py-3 shrink-0 h-[60px] bg-white border-b border-gray-200">
             <div className="flex bg-[#f3f4f6] rounded-[20px] p-[2px]">
@@ -307,7 +300,7 @@ export default function TeacherCalendar() {
           </div>
 
           {/* Izgara Başlıkları */}
-          <div className="flex border-b border-gray-200 shrink-0 bg-white z-10">
+          <div className="flex border-b border-gray-200 shrink-0 bg-white z-10 min-w-[700px]">
             <div className="w-[80px] shrink-0 border-r border-gray-200"></div>
             <div className="flex-1 grid grid-cols-7">
               {weekDays.map((day, idx) => (
@@ -330,7 +323,7 @@ export default function TeacherCalendar() {
 
           {/* Saat Izgarası */}
           <div className="flex-1 overflow-y-auto relative bg-white">
-            <div className="flex">
+            <div className="flex min-w-[700px]">
               {/* Sol Saat Etiketleri */}
               <div className="w-[80px] shrink-0 flex flex-col bg-white z-10 sticky left-0 border-r border-gray-200">
                 {hours.map((hour, idx) => (

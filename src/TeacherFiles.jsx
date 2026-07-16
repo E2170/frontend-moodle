@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { moodlePost } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 
 export default function TeacherFiles() {
@@ -25,19 +26,13 @@ export default function TeacherFiles() {
     }
 
     try {
-      const userResponse = await fetch(
-        `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json` },
-      );
-      const userData = await userResponse.json();
+      const userData = await moodlePost(token, "core_webservice_get_site_info");
 
       if (userData && userData.userid) {
         
 
         try {
-          const filesResponse = await fetch(
-            `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_user_get_private_files&userid=${userData.userid}&moodlewsrestformat=json` },
-          );
-          const filesData = await filesResponse.json();
+          const filesData = await moodlePost(token, "core_user_get_private_files", { userid: userData.userid });
 
           if (Array.isArray(filesData) && filesData.length > 0) {
             setFiles(filesData);

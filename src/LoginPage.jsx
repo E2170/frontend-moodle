@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { moodlePost } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 
@@ -75,10 +76,7 @@ export default function LoginPage() {
             }
 
             // 1. Kullanıcının temel site bilgilerini al (userid tespiti için)
-            const siteInfoRes = await fetch(
-              `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${data.token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json` },
-            );
-            const siteInfo = await siteInfoRes.json();
+            const siteInfo = await moodlePost(data.token, "core_webservice_get_site_info");
 
             let isTeacher = false;
 
@@ -88,22 +86,14 @@ export default function LoginPage() {
             }
             // Ders bazlı yetki kontrolü
             else if (siteInfo.userid) {
-              const coursesRes = await fetch(
-                `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${data.token}&wsfunction=core_enrol_get_users_courses&userid=${siteInfo.userid}&moodlewsrestformat=json` },
-              );
-              const courses = await coursesRes.json();
+              const courses = await moodlePost(data.token, "core_enrol_get_users_courses", { userid: siteInfo.userid });
 
               if (Array.isArray(courses) && courses.length > 0) {
                 // Öğretmen olup olmadığını anlamak için, öğrencinin normalde erişemediği "Katılımcı Listesi" (core_enrol_get_enrolled_users) fonksiyonunu deneriz.
                 // İlk 10 dersi eşzamanlı olarak kontrol ediyoruz.
                 const coursesToCheck = courses.slice(0, 10);
                 const accessPromises = coursesToCheck.map(course => 
-                  fetch(`/api/webservice/rest/server.php`, { 
-                    method: "POST", 
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" }, 
-                    body: `wstoken=${data.token}&wsfunction=core_enrol_get_enrolled_users&courseid=${course.id}&moodlewsrestformat=json` 
-                  })
-                  .then(res => res.json())
+                  moodlePost(data.token, "core_enrol_get_enrolled_users", { courseid: course.id })
                   .catch(() => ({}))
                 );
                 

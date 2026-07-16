@@ -108,12 +108,12 @@ export default function Header() {
               <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
             </button>
             {activeDropdown === 'messages' && (
-              <div className="absolute top-[60px] right-[-40px] sm:-right-2 bg-white text-[#495057] w-[280px] sm:w-[320px] rounded-[8px] shadow-[0_5px_20px_rgba(0,0,0,0.15)] z-[100] border border-gray-100 overflow-hidden cursor-default" onClick={(e) => e.stopPropagation()}>
+              <div className="absolute top-[60px] right-0 bg-white text-[#495057] w-[280px] sm:w-[320px] rounded-[8px] shadow-[0_5px_20px_rgba(0,0,0,0.15)] z-[100] border border-gray-100 overflow-hidden cursor-default" onClick={(e) => e.stopPropagation()}>
                 <div className="absolute -top-[7px] right-[50px] sm:right-[10px] w-4 h-4 bg-[#e9ecef] rotate-45 border-l border-t border-gray-100"></div>
                 {/* Header Toggles */}
                 <div className="bg-[#e9ecef] p-1.5 flex relative z-10">
-                  <div className="flex-1 bg-white rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#006cb5] shadow-sm cursor-pointer">Mesajlar</div>
-                  <div className="flex-1 rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#6c757d] cursor-pointer hover:text-[#495057] transition-colors">Duyurular</div>
+                  <div onClick={() => { navigate('/messages'); setActiveDropdown(null); }} className="flex-1 bg-white rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#006cb5] shadow-sm cursor-pointer hover:bg-gray-50 transition-colors">Mesajlar</div>
+                  <div onClick={() => { navigate('/announcements'); setActiveDropdown(null); }} className="flex-1 rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#6c757d] cursor-pointer hover:text-[#495057] hover:bg-gray-200 transition-colors">Duyurular</div>
                 </div>
                 {/* Content */}
                 <div className="p-8 flex flex-col items-center justify-center min-h-[220px] bg-white relative z-10 border-t border-gray-200">
@@ -130,12 +130,12 @@ export default function Header() {
               <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
             </button>
             {activeDropdown === 'notifications' && (
-              <div className="absolute top-[60px] right-[-20px] sm:-right-2 bg-white text-[#495057] w-[280px] sm:w-[320px] rounded-[8px] shadow-[0_5px_20px_rgba(0,0,0,0.15)] z-[100] border border-gray-100 overflow-hidden cursor-default" onClick={(e) => e.stopPropagation()}>
+              <div className="absolute top-[60px] right-0 bg-white text-[#495057] w-[280px] sm:w-[320px] rounded-[8px] shadow-[0_5px_20px_rgba(0,0,0,0.15)] z-[100] border border-gray-100 overflow-hidden cursor-default" onClick={(e) => e.stopPropagation()}>
                 <div className="absolute -top-[7px] right-[30px] sm:right-[10px] w-4 h-4 bg-[#e9ecef] rotate-45 border-l border-t border-gray-100"></div>
                 {/* Header Toggles */}
                 <div className="bg-[#e9ecef] p-1.5 flex relative z-10">
-                  <div className="flex-1 rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#6c757d] cursor-pointer hover:text-[#495057] transition-colors">Aktiviteler</div>
-                  <div className="flex-1 bg-white rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#006cb5] shadow-sm cursor-pointer">Bildirimler</div>
+                  <div onClick={() => { navigate('/calendar'); setActiveDropdown(null); }} className="flex-1 rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#6c757d] cursor-pointer hover:text-[#495057] hover:bg-gray-200 transition-colors">Aktiviteler</div>
+                  <div className="flex-1 bg-white rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#006cb5] shadow-sm cursor-default">Bildirimler</div>
                 </div>
                 {/* Content */}
                 <div className="p-8 flex flex-col items-center justify-center min-h-[220px] bg-white relative z-10 border-t border-gray-200">
@@ -144,8 +144,8 @@ export default function Header() {
                 </div>
                 {/* Footer */}
                 <div className="p-3 flex gap-2 bg-white relative z-10 border-t border-gray-100">
-                  <button className="flex-1 py-2.5 bg-[#f8f9fa] hover:bg-[#e2e6ea] text-[#adb5bd] text-[13px] font-semibold rounded-[6px] transition-colors">Okundu Olarak İşaretle</button>
-                  <button className="flex-1 py-2.5 bg-[#e9ecef] hover:bg-[#dde2e6] text-[#003d66] text-[13px] font-semibold rounded-[6px] transition-colors">Tüm Bildirimleri Görüntüle</button>
+                  <button onClick={() => setActiveDropdown(null)} className="flex-1 py-2.5 bg-[#f8f9fa] hover:bg-[#e2e6ea] text-[#adb5bd] text-[13px] font-semibold rounded-[6px] transition-colors">Okundu Olarak İşaretle</button>
+                  <button onClick={() => { navigate('/dashboard'); setActiveDropdown(null); }} className="flex-1 py-2.5 bg-[#e9ecef] hover:bg-[#dde2e6] text-[#003d66] text-[13px] font-semibold rounded-[6px] transition-colors">Tüm Bildirimleri Görüntüle</button>
                 </div>
               </div>
             )}
@@ -157,7 +157,7 @@ export default function Header() {
               TR
             </button>
             {activeDropdown === 'language' && (
-              <div className="absolute top-[60px] -right-2 bg-white text-[#495057] w-[180px] rounded-[14px] shadow-[0_5px_20px_rgba(0,0,0,0.15)] py-2 px-2 z-[100] border border-gray-100 cursor-default" onClick={(e) => e.stopPropagation()}>
+              <div className="absolute top-[60px] right-0 bg-white text-[#495057] w-[180px] rounded-[14px] shadow-[0_5px_20px_rgba(0,0,0,0.15)] py-2 px-2 z-[100] border border-gray-100 cursor-default" onClick={(e) => e.stopPropagation()}>
                 <div className="absolute -top-[6px] right-[14px] w-3 h-3 bg-[#e9ecef] rotate-45 border-l border-t border-gray-100"></div>
                 <div className="flex flex-col gap-1 relative z-10">
                   <button className="flex items-center gap-3 w-full bg-[#e9ecef] py-2 px-3 rounded-full transition-colors">

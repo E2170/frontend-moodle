@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { moodlePost } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 export default function MyCourses() {
   const [loading, setLoading] = useState(true);
@@ -18,19 +19,13 @@ export default function MyCourses() {
 
     try {
       // Kullanıcı bilgilerini al
-      const userResponse = await fetch(
-        `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json` },
-      );
-      const userData = await userResponse.json();
+      const userData = await moodlePost(token, "core_webservice_get_site_info");
 
       if (userData && userData.userid) {
         
 
         // Kullanıcının kayıtlı olduğu dersleri al
-        const coursesResponse = await fetch(
-          `/api/webservice/rest/server.php`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `wstoken=${token}&wsfunction=core_enrol_get_users_courses&userid=${userData.userid}&moodlewsrestformat=json` },
-        );
-        const coursesData = await coursesResponse.json();
+        const coursesData = await moodlePost(token, "core_enrol_get_users_courses", { userid: userData.userid });
 
         if (Array.isArray(coursesData)) {
           setCourses(coursesData);

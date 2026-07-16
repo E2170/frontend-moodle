@@ -304,24 +304,29 @@ class external extends external_api {
     }
 
     public static function get_questions_parameters() {
-        return new external_function_parameters(
+        return new \core_external\external_function_parameters(
             array(
-                'courseid' => new external_value(PARAM_INT, 'Ders ID', VALUE_REQUIRED),
-                'categoryid' => new external_value(PARAM_INT, 'Kategori ID', VALUE_DEFAULT, 0),
-                'qtype' => new external_value(PARAM_TEXT, 'Soru Tipi (qtype)', VALUE_DEFAULT, ''),
-                'searchtext' => new external_value(PARAM_TEXT, 'Arama metni', VALUE_DEFAULT, '')
+                'courseid' => new external_value(PARAM_INT, 'Kurs ID'),
+                'categoryid' => new external_value(PARAM_INT, 'Kategori ID (opsiyonel)', VALUE_DEFAULT, 0),
+                'qtype' => new external_value(PARAM_TEXT, 'Soru tipi (opsiyonel)', VALUE_DEFAULT, ''),
+                'searchtext' => new external_value(PARAM_TEXT, 'Arama metni (opsiyonel)', VALUE_DEFAULT, ''),
+                'limitfrom' => new external_value(PARAM_INT, 'Baslangic (opsiyonel)', VALUE_DEFAULT, 0),
+                'limitnum' => new external_value(PARAM_INT, 'Sayi (opsiyonel)', VALUE_DEFAULT, 0)
             )
         );
     }
 
-    public static function get_questions($courseid, $categoryid = 0, $qtype = '', $searchtext = '') {
+    public static function get_questions($courseid, $categoryid = 0, $qtype = '', $searchtext = '', $limitfrom = 0, $limitnum = 0) {
         global $DB;
         $params = self::validate_parameters(self::get_questions_parameters(), array(
             'courseid' => $courseid,
             'categoryid' => $categoryid,
             'qtype' => $qtype,
-            'searchtext' => $searchtext
+            'searchtext' => $searchtext,
+            'limitfrom' => $limitfrom,
+            'limitnum' => $limitnum
         ));
+        file_put_contents('/tmp/moodle_debug.log', json_encode($params) . "\n", FILE_APPEND);
         
         $context = \context_course::instance($params['courseid']);
         self::validate_context($context);
@@ -349,7 +354,8 @@ class external extends external_api {
             $dbparams['searchtext'] = '%' . $params['searchtext'] . '%';
         }
         
-        $questions = $DB->get_records_sql($sql, $dbparams);
+        $totalcount = $DB->count_records_sql("SELECT COUNT(q.id) " . substr($sql, strpos($sql, "FROM")), $dbparams);
+        $questions = $DB->get_records_sql($sql, $dbparams, $params['limitfrom'], $params['limitnum']);
         
         $result = array();
         foreach ($questions as $q) {
@@ -362,18 +368,28 @@ class external extends external_api {
             );
         }
         
-        return $result;
+        $res = array(
+            'totalcount' => $totalcount,
+            'questions' => $result
+        );
+        file_put_contents('/tmp/moodle_debug.log', json_encode($res) . "\n", FILE_APPEND);
+        return $res;
     }
 
     public static function get_questions_returns() {
-        return new \core_external\external_multiple_structure(
-            new \core_external\external_single_structure(
-                array(
-                    'id' => new external_value(PARAM_INT, 'Soru ID'),
-                    'name' => new external_value(PARAM_TEXT, 'Soru Adi'),
-                    'questiontext' => new external_value(PARAM_RAW, 'Soru Metni'),
-                    'qtype' => new external_value(PARAM_TEXT, 'Soru Tipi'),
-                    'in_use' => new external_value(PARAM_INT, 'Kullanimda mi (1/0)')
+        return new \core_external\external_single_structure(
+            array(
+                'totalcount' => new external_value(PARAM_INT, 'Toplam Soru Sayisi'),
+                'questions' => new \core_external\external_multiple_structure(
+                    new \core_external\external_single_structure(
+                        array(
+                            'id' => new external_value(PARAM_INT, 'Soru ID'),
+                            'name' => new external_value(PARAM_TEXT, 'Soru adi', VALUE_OPTIONAL),
+                            'questiontext' => new external_value(PARAM_RAW, 'Soru icerigi', VALUE_OPTIONAL),
+                            'qtype' => new external_value(PARAM_TEXT, 'Soru tipi', VALUE_OPTIONAL),
+                            'in_use' => new external_value(PARAM_INT, 'Soru kullanimda mi', VALUE_OPTIONAL)
+                        )
+                    )
                 )
             )
         );

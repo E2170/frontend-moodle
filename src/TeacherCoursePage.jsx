@@ -1,21 +1,14 @@
 import { useEffect, useState, useCallback } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
+import { showAlert } from "./AlertModal";
 import TeacherActivityViewer from "./TeacherActivityViewer";
 import { useAuth } from "./AuthContext";
 
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
-const moodlePost = async (token, wsfunction, extraParams = {}) => {
-  const params = new URLSearchParams({ wstoken: token, wsfunction, moodlewsrestformat: "json" });
-  for (const [key, value] of Object.entries(extraParams)) params.append(key, String(value));
-  const res = await fetch("/api/webservice/rest/server.php", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString(),
-  });
-  return res.json();
-};
+import { moodlePost } from "./moodleApi";
+// Removed local moodlePost
 
 // ─────────────────────────────────────────────
 // Aktivite Ekleme — Arka Planda Parametre Çekme (Native UI)
@@ -295,6 +288,10 @@ export default function TeacherCoursePage() {
   const location = useLocation();
   const { userInfo } = useAuth();
 
+  const [editItemDetails, setEditItemDetails] = useState(null);
+
+  // Aktivite Silme Onay Modalı için State
+  const [activityToDelete, setActivityToDelete] = useState(null);
   const [courseDetail, setCourseDetail] = useState({ fullname: "Ders Yükleniyor..." });
   const [sections, setSections] = useState([]);
   const [activeTab, setActiveTab] = useState("Ders İçeriği");
@@ -331,18 +328,7 @@ export default function TeacherCoursePage() {
     const token = localStorage.getItem("moodle_token");
     if (!token) { navigate("/"); return; }
     try {
-      const [userRes, sectionsRes] = await Promise.all([
-        fetch(`/api/webservice/rest/server.php`, {
-          method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: `wstoken=${token}&wsfunction=core_webservice_get_site_info&moodlewsrestformat=json`,
-        }),
-        fetch(`/api/webservice/rest/server.php`, {
-          method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: `wstoken=${token}&wsfunction=core_course_get_contents&courseid=${courseId}&moodlewsrestformat=json`,
-        }),
-      ]);
-      await userRes.json();
-      const sectionsData = await sectionsRes.json();
+      const sectionsData = await moodlePost(token, "core_course_get_contents", { courseid: courseId });
 
       if (Array.isArray(sectionsData)) {
         setSections(sectionsData);
@@ -430,8 +416,14 @@ export default function TeacherCoursePage() {
 
   const token = localStorage.getItem("moodle_token");
 
-  const handleDeleteActivity = async (mod) => {
-    if (!window.confirm(`'${mod.name}' isimli aktiviteyi silmek istediğinize emin misiniz?`)) return;
+  const handleDeleteActivity = (mod) => {
+    setActivityToDelete(mod);
+  };
+
+  const confirmDeleteActivity = async () => {
+    if (!activityToDelete) return;
+    const mod = activityToDelete;
+    setActivityToDelete(null);
 
     try {
       // API üzerinden (token tabanlı) resmi silme işlemini yapıyoruz.
@@ -444,10 +436,10 @@ export default function TeacherCoursePage() {
         throw new Error(deleteRes.message || "Aktivite silinirken erişim yetkisi hatası oluştu.");
       }
 
-      alert("Aktivite başarıyla silindi.");
+      showAlert("Aktivite başarıyla silindi.");
       fetchCourseData(); // Sayfayı yenile
     } catch (e) {
-      alert("Hata: " + e.message);
+      showAlert("Hata: " + e.message);
     }
   };
 
@@ -707,18 +699,48 @@ export default function TeacherCoursePage() {
                 }
 
                 if (res && (res.status === "success" || res.status === true || res.cmid || res.activityid || res.id)) {
-                  alert(`'${sessionInfo.name}' oturumu ${questions.length} soru ile başarıyla oluşturuldu ve yayınlandı!`);
-                  setAlmsSessionWizard(null);
                   setAlmsQuizActivity(null);
                   fetchCourseData();
                 } else {
                   throw new Error("Moodle Yanıtı (Lütfen bunu kopyalayıp bana gönderin): " + JSON.stringify(res));
                 }
               } catch (e) {
-                alert("Kaydedilirken hata oluştu: " + e.message);
-              }
+                showAlert("Kaydedilirken hata oluştu: " + e.message);
+            }
            }}
         />
+      )}
+
+      {/* Aktivite Silme Onay Modalı */}
+      {activityToDelete && (
+        <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden animate-zoom-in">
+            <div className="p-5 flex items-center gap-3 border-b border-gray-100 bg-red-50/50">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </div>
+              <h3 className="font-bold text-gray-800 text-lg">Aktiviteyi Sil</h3>
+            </div>
+            <div className="p-6 text-gray-600 text-sm font-medium text-center">
+              <span className="font-bold text-gray-800">'{activityToDelete.name}'</span> isimli aktiviteyi silmek istediğinize emin misiniz?
+            </div>
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+              <button 
+                onClick={() => setActivityToDelete(null)} 
+                className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-100 transition-colors shadow-sm"
+              >
+                Vazgeç
+              </button>
+              <button 
+                onClick={confirmDeleteActivity} 
+                className="px-5 py-2.5 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors shadow-md flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Evet, Sil
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

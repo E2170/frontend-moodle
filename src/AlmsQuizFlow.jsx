@@ -98,10 +98,10 @@ export function AlmsSessionWizard({ onClose, onComplete, initialName }) {
 
   // mock bank
   const questionBank = [
-    { id: 1, text: "<p>Python'da liste eleman eklemek için hangi metot kullanılır?</p>", difficulty: "Kolay", type: "Çoktan Seçmeli" },
-    { id: 2, text: "<p>Ağ nedir?</p>", difficulty: "Orta", type: "Çoktan Tek Seçmeli" },
-    { id: 3, text: "<p>Aşağıdakilerden hangisi bir işletim sistemi değildir?</p>", difficulty: "Kolay", type: "Çoktan Seçmeli" },
-    { id: 4, text: "<p>React hook'ları hangi versiyonda gelmiştir?</p>", difficulty: "Zor", type: "Çoktan Tek Seçmeli" },
+    { id: 1, name: "Python Listeleri", text: "<p>Python'da liste eleman eklemek için hangi metot kullanılır?</p>", difficulty: "Kolay", type: "Çoktan Seçmeli" },
+    { id: 2, name: "Ağ Temelleri", text: "<p>Ağ nedir?</p>", difficulty: "Orta", type: "Çoktan Tek Seçmeli" },
+    { id: 3, name: "İşletim Sistemleri", text: "<p>Aşağıdakilerden hangisi bir işletim sistemi değildir?</p>", difficulty: "Kolay", type: "Çoktan Seçmeli" },
+    { id: 4, name: "React Sürümleri", text: "<p>React hook'ları hangi versiyonda gelmiştir?</p>", difficulty: "Zor", type: "Çoktan Tek Seçmeli" },
   ];
 
   const STEPS = [
@@ -222,7 +222,10 @@ export function AlmsSessionWizard({ onClose, onComplete, initialName }) {
                        <div key={q.id} className="p-4 flex items-center justify-between hover:bg-blue-50/50 transition-colors">
                          <div className="flex items-center gap-4 flex-1">
                            <input type="checkbox" checked={selectedQuestions.includes(q.id)} onChange={() => toggleQuestion(q.id)} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
-                           <div className="text-sm text-gray-800 font-medium" dangerouslySetInnerHTML={{__html: q.text}}></div>
+                           <div className="flex flex-col">
+                             <span className="text-[13px] font-bold text-gray-800">{q.name}</span>
+                             <div className="text-[11px] text-gray-500 font-medium line-clamp-2" dangerouslySetInnerHTML={{__html: q.text}}></div>
+                           </div>
                          </div>
                          <div className="flex gap-2">
                            <span className="bg-white border border-gray-200 text-gray-600 px-2.5 py-1 rounded text-[11px] font-bold shadow-sm">{q.difficulty}</span>
@@ -251,14 +254,23 @@ export function AlmsSessionWizard({ onClose, onComplete, initialName }) {
                    </div>
                    <div className="divide-y divide-gray-100">
                      {questionBank.filter(q => selectedQuestions.includes(q.id)).map(q => (
-                       <div key={q.id} className="p-4 flex items-center justify-between">
+                       <div key={q.id} className="p-4 flex items-center justify-between group">
                          <div className="flex items-center gap-4 flex-1">
-                           <input type="checkbox" checked className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" readOnly />
-                           <div className="text-sm text-gray-800 font-medium" dangerouslySetInnerHTML={{__html: q.text}}></div>
+                           <div className="flex flex-col">
+                             <span className="text-[13px] font-bold text-gray-800">{q.name}</span>
+                             <div className="text-[11px] text-gray-500 font-medium line-clamp-2" dangerouslySetInnerHTML={{__html: q.text}}></div>
+                           </div>
                          </div>
-                         <div className="flex gap-2">
+                         <div className="flex items-center gap-3">
                            <span className="bg-white border border-gray-200 text-gray-600 px-2.5 py-1 rounded text-[11px] font-bold shadow-sm">{q.difficulty}</span>
                            <span className="bg-gray-100 border border-gray-200 text-gray-600 px-2.5 py-1 rounded text-[11px] font-bold shadow-sm">{q.type}</span>
+                           <button 
+                             onClick={() => toggleQuestion(q.id)}
+                             className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                             title="Soruyu Sınavdan Çıkar"
+                           >
+                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                           </button>
                          </div>
                        </div>
                      ))}
