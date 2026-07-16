@@ -11,6 +11,7 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId }) {
   const [stats, setStats] = useState({ total: 0, valid: 0, invalid: 0 });
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [categoryName, setCategoryName] = useState("");
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -77,6 +78,9 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId }) {
       formData.append("wstoken", token);
       formData.append("courseid", courseId);
       formData.append("aiken", aikenText);
+      if (categoryName.trim()) {
+        formData.append("categoryname", categoryName.trim());
+      }
 
       const res = await fetch("/api/local/vueapi/import_csv.php", {
         method: "POST",
@@ -150,7 +154,21 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId }) {
 
           {/* Step 2 */}
           <div className="flex gap-6 items-start">
-            <div className="w-10 h-10 rounded-full border-2 border-green-500 flex items-center justify-center font-bold text-green-500 shrink-0 text-lg bg-green-50">2</div>
+            <div className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center font-bold text-gray-400 shrink-0 text-lg">2</div>
+            <div className="flex-1 pt-1">
+              <h3 className="text-base font-bold text-gray-800 mb-1">Konu / Kategori Belirleme (İsteğe Bağlı)</h3>
+              <p className="text-sm text-gray-500 mb-4">Bu soruların ekleneceği konuyu veya kategoriyi yazabilirsiniz.</p>
+            </div>
+            <div className="w-[300px]">
+              <input type="text" value={categoryName} onChange={(e) => setCategoryName(e.target.value)}
+                placeholder="Örn: 1. Ünite - Temel Kavramlar"
+                className="w-full border-b-2 border-gray-200 py-2 text-sm text-gray-700 outline-none focus:border-[#0b1b36] bg-transparent font-medium transition-colors" />
+            </div>
+          </div>
+
+          {/* Step 3 */}
+          <div className="flex gap-6 items-start">
+            <div className="w-10 h-10 rounded-full border-2 border-green-500 flex items-center justify-center font-bold text-green-500 shrink-0 text-lg bg-green-50">3</div>
             <div className="flex-1 pt-1">
               <h3 className="text-base font-bold text-gray-800 mb-1">CSV Şablonu İndirme</h3>
               <p className="text-sm text-gray-500 mb-4">CSV şablon dosyasını bilgisayarınıza indiriniz ve sorularınızı içerecek şekilde güncelleyip kaydediniz. Sütunlar: Soru Metni, A, B, C, D, E, Doğru Cevap Şıkkı (Örn: A)</p>
@@ -166,9 +184,9 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId }) {
             </div>
           </div>
 
-          {/* Step 3 */}
+          {/* Step 4 */}
           <div className="flex gap-6 items-start">
-            <div className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center font-bold text-gray-400 shrink-0 text-lg">3</div>
+            <div className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center font-bold text-gray-400 shrink-0 text-lg">4</div>
             <div className="flex-1 pt-1">
               <h3 className="text-base font-bold text-gray-800 mb-1">CSV Dosyası Yükleme</h3>
               <p className="text-sm text-gray-500 mb-4">Kaydettiğiniz CSV dosyasını (UTF-8 formatında) yükleme alanından yükleyiniz.</p>
@@ -287,7 +305,10 @@ export default function TeacherQuestionBank() {
     term: "",
     exam: "",
     questionText: "",
+    category: "",
   });
+
+  const [categories, setCategories] = useState([]);
 
   // Üst Menü Durumları
   
@@ -324,6 +345,29 @@ export default function TeacherQuestionBank() {
     fetchQuestionBankData();
   }, [fetchQuestionBankData]);
 
+  const targetCourseId = courseId || filters.course;
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      if (!targetCourseId) {
+        setCategories([]);
+        return;
+      }
+      const token = localStorage.getItem("moodle_token");
+      try {
+        const catData = await moodlePost(token, "local_vueapi_get_question_categories", { courseid: targetCourseId });
+        if (Array.isArray(catData)) {
+          setCategories(catData);
+        } else {
+          setCategories([]);
+        }
+      } catch (err) {
+        console.error("Kategoriler çekilemedi:", err);
+      }
+    };
+    fetchCategories();
+  }, [targetCourseId]);
+
   
   
   const handleFilterChange = (e) => {
@@ -338,6 +382,7 @@ export default function TeacherQuestionBank() {
       term: "",
       exam: "",
       questionText: "",
+      category: "",
     });
     setHasSearched(false);
   };
@@ -356,11 +401,17 @@ export default function TeacherQuestionBank() {
 
     try {
         const limitfrom = (pageNumber - 1) * QUESTIONS_PER_PAGE;
-        const data = await moodlePost(token, "local_vueapi_get_questions", {
+        const payload = {
             courseid: targetCourseId,
             limitfrom: limitfrom,
             limitnum: QUESTIONS_PER_PAGE
-        });
+        };
+        
+        if (filters.category) {
+            payload.categoryid = parseInt(filters.category, 10);
+        }
+        
+        const data = await moodlePost(token, "local_vueapi_get_questions", payload);
         
         if (data.exception) {
             showAlert("Hata: " + data.message);
@@ -520,21 +571,7 @@ export default function TeacherQuestionBank() {
         {/* Filtreleme Kartı */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-2 relative">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-5">
-            {/* Ana Ders */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                Ana Ders
-              </label>
-              <select
-                name="mainCourse"
-                value={filters.mainCourse}
-                onChange={handleFilterChange}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none bg-white"
-              >
-                <option value="">Ana Ders Seçiniz</option>
-                {/* Gelecekte kategori çekilirse buraya map edilecek */}
-              </select>
-            </div>
+            {/* Ana Ders Filtresi Kaldırıldı */}
 
             {/* Ders (Moodle'dan Dinamik) */}
             <div>
@@ -551,6 +588,26 @@ export default function TeacherQuestionBank() {
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.fullname}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Kategori */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                Konu / Kategori
+              </label>
+              <select
+                name="category"
+                value={filters.category}
+                onChange={handleFilterChange}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none bg-white"
+              >
+                <option value="">Tümü</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
                   </option>
                 ))}
               </select>

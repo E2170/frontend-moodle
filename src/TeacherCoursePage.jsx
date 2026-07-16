@@ -761,21 +761,7 @@ export default function TeacherCoursePage() {
       {almsQuizActivity && (
         <AlmsQuizActivityModal 
            onClose={() => setAlmsQuizActivity(null)}
-           onOpenSession={(form) => {
-              setAlmsSessionWizard({ activityForm: form, sectionNum: almsQuizActivity.sectionNum });
-           }}
-           onSaveActivity={(form) => {
-              setAlmsSessionWizard({ activityForm: form, sectionNum: almsQuizActivity.sectionNum });
-           }}
-        />
-      )}
-
-      {almsSessionWizard && (
-        <AlmsSessionWizard 
-           initialName={almsSessionWizard.activityForm.name}
-           onClose={() => setAlmsSessionWizard(null)}
-           onComplete={async (sessionInfo, questions) => {
-              const { activityForm, sectionNum } = almsSessionWizard;
+           onSaveActivity={async (form) => {
               try {
                 const toUnix = (str) => {
                   if (!str) return 0;
@@ -783,14 +769,19 @@ export default function TeacherCoursePage() {
                   return isNaN(ms) ? 0 : Math.floor(ms / 1000);
                 };
 
+                let fullIntro = form.intro || "";
+                if (form.examNote) {
+                  fullIntro += `<br><br><strong>Sınav Notu:</strong><br>${form.examNote}`;
+                }
+
                 const payload = {
                   courseid: courseId,
-                  section: sectionNum,
+                  section: almsQuizActivity.sectionNum,
                   type: "quiz",
-                  name: sessionInfo.name || activityForm.name || "Sınav",
-                  description: activityForm.intro || "",
-                  timeopen: toUnix(sessionInfo.start),
-                  timeclose: toUnix(sessionInfo.end),
+                  name: form.name || "Sınav",
+                  description: fullIntro,
+                  timeopen: toUnix(form.start),
+                  timeclose: toUnix(form.end),
                   duedate: 0,
                   maxbytes: 0,
                   maxfiles: 0,
@@ -810,12 +801,13 @@ export default function TeacherCoursePage() {
                 if (res && (res.status === "success" || res.status === true || res.cmid || res.activityid || res.id)) {
                   setAlmsQuizActivity(null);
                   fetchCourseData();
+                  showAlert("Sınav başarıyla oluşturuldu ve yayımlandı!");
                 } else {
-                  throw new Error("Moodle Yanıtı (Lütfen bunu kopyalayıp bana gönderin): " + JSON.stringify(res));
+                  throw new Error("Sınav kaydedilemedi: " + JSON.stringify(res));
                 }
               } catch (e) {
                 showAlert("Kaydedilirken hata oluştu: " + e.message);
-            }
+              }
            }}
         />
       )}

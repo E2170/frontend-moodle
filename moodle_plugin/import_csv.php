@@ -9,6 +9,7 @@ require_once($CFG->dirroot . "/question/format/aiken/format.php");
 $token = required_param("wstoken", PARAM_ALPHANUM);
 $courseid = required_param("courseid", PARAM_INT);
 $aikentext = required_param("aiken", PARAM_RAW);
+$categoryname = optional_param("categoryname", "", PARAM_TEXT);
 
 try {
     $webservicelib = new webservice();
@@ -17,14 +18,40 @@ try {
     $context = context_course::instance($courseid);
     require_capability("moodle/question:add", $context);
 
-    $category = question_get_default_category($context->id);
-    if (!$category) {
-        // Eğer kategori henüz oluşturulmamışsa (örneğin hoca hiç soru bankasına girmemişse) otomatik oluştur
-        question_make_default_categories(array($context));
+    global $DB;
+
+    $category = null;
+    if (!empty($categoryname)) {
+        // Kategoriyi isme göre ara
+        $existing_cat = $DB->get_record('question_categories', array('name' => $categoryname, 'contextid' => $context->id));
+        if ($existing_cat) {
+            $category = $existing_cat;
+        } else {
+            // Yoksa oluştur
+            $defaultcategory = question_get_default_category($context->id);
+            if (!$defaultcategory) {
+                question_make_default_categories(array($context));
+                $defaultcategory = question_get_default_category($context->id);
+            }
+            $newcat = new stdClass();
+            $newcat->name = $categoryname;
+            $newcat->contextid = $context->id;
+            $newcat->parent = $defaultcategory ? $defaultcategory->id : 0;
+            $newcat->info = '';
+            $newcat->stamp = make_unique_id_code();
+            $newcat->id = $DB->insert_record('question_categories', $newcat);
+            $category = $newcat;
+        }
+    } else {
         $category = question_get_default_category($context->id);
-        
         if (!$category) {
-            throw new Exception("Ders için varsayılan soru kategorisi bulunamadı ve otomatik olarak oluşturulamadı.");
+            // Eğer kategori henüz oluşturulmamışsa otomatik oluştur
+            question_make_default_categories(array($context));
+            $category = question_get_default_category($context->id);
+            
+            if (!$category) {
+                throw new Exception("Ders için varsayılan soru kategorisi bulunamadı ve otomatik olarak oluşturulamadı.");
+            }
         }
     }
 

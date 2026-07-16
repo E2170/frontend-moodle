@@ -342,7 +342,7 @@ class external extends external_api {
                 JOIN {question_versions} qv ON qv.questionid = q.id
                 JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
                 JOIN {question_categories} qc ON qc.id = qbe.questioncategoryid
-                WHERE qc.contextid = :contextid";
+                WHERE qc.contextid = :contextid AND qv.status != 'hidden'";
                 
         $dbparams = array('contextid' => $context->id);
         
@@ -652,6 +652,54 @@ class external extends external_api {
                     'name' => new external_value(PARAM_TEXT, 'Question name'),
                     'questiontext' => new external_value(PARAM_RAW, 'Question text'),
                 )
+            )
+        );
+    }
+    public static function delete_question_parameters() {
+        return new external_function_parameters(
+            array(
+                'questionid' => new external_value(PARAM_INT, 'The question ID to delete', VALUE_DEFAULT, 0),
+                'id' => new external_value(PARAM_INT, 'The question ID (fallback)', VALUE_DEFAULT, 0)
+            )
+        );
+    }
+
+    public static function delete_question($questionid = 0, $id = 0) {
+        global $DB, $CFG;
+        
+        $params = self::validate_parameters(self::delete_question_parameters(), array(
+            'questionid' => $questionid,
+            'id' => $id
+        ));
+        
+        $qid = $params['questionid'] ? $params['questionid'] : $params['id'];
+        
+        if (empty($qid)) {
+            throw new invalid_parameter_exception('Question ID is missing.');
+        }
+
+        require_once($CFG->libdir . '/questionlib.php');
+
+        // Check if question exists
+        $question = $DB->get_record('question', array('id' => $qid));
+        if (!$question) {
+            return array('status' => false, 'message' => 'Soru bulunamadı.');
+        }
+
+        // Try to delete using questionlib method
+        try {
+            question_delete_question($qid);
+            return array('status' => true, 'message' => 'Soru başarıyla silindi.');
+        } catch (Exception $e) {
+            return array('status' => false, 'message' => $e->getMessage());
+        }
+    }
+
+    public static function delete_question_returns() {
+        return new external_single_structure(
+            array(
+                'status' => new external_value(PARAM_BOOL, 'Status of the operation'),
+                'message' => new external_value(PARAM_TEXT, 'Response message')
             )
         );
     }

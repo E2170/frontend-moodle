@@ -2,7 +2,7 @@ import React, { useState } from "react";
 
 export function AlmsQuizActivityModal({ onClose, onOpenSession, onSaveActivity }) {
   const [activeTab, setActiveTab] = useState("İÇERİK");
-  const [form, setForm] = useState({ name: "", intro: "", preMessage: "", postMessage: "" });
+  const [form, setForm] = useState({ name: "", intro: "", examNote: "", start: "", end: "" });
 
   const TABS = ["ŞUBE SEÇİMİ", "İÇERİK", "AYARLAR", "OTURUMLAR"];
 
@@ -44,43 +44,60 @@ export function AlmsQuizActivityModal({ onClose, onOpenSession, onSaveActivity }
                 <p className="text-[10px] text-gray-400 mt-1">Aktivite listeleme sayfalarında ve Not Defteri'nde yazdığınız şekli ile görünecektir.</p>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Eğitmen Notu (Açıklama)</label>
-                <textarea value={form.intro} onChange={e=>setForm({...form, intro: e.target.value})} rows={4} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 ring-blue-100 transition-all resize-none" placeholder="Aktivite için açıklama yazınız..."></textarea>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Eğitmen Notu</label>
+                <textarea value={form.intro} onChange={e=>setForm({...form, intro: e.target.value})} rows={4} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 ring-blue-100 transition-all resize-none" placeholder="Eğitmen Notu"></textarea>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Sınav Öncesi Mesajı</label>
-                <textarea value={form.preMessage} onChange={e=>setForm({...form, preMessage: e.target.value})} rows={3} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 ring-blue-100 transition-all resize-none" placeholder="Sınav Öncesi Mesajı"></textarea>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Sınav Notu</label>
+                <textarea value={form.examNote} onChange={e=>setForm({...form, examNote: e.target.value})} rows={4} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 ring-blue-100 transition-all resize-none" placeholder="Sınav Notu"></textarea>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Sınav Sonrası Mesajı</label>
-                <textarea value={form.postMessage} onChange={e=>setForm({...form, postMessage: e.target.value})} rows={3} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 ring-blue-100 transition-all resize-none" placeholder="Sınav Sonrası Mesajı"></textarea>
-              </div>
-              <button onClick={() => onSaveActivity(form)} className="w-full bg-[#0b1b36] text-white py-3 rounded-md font-bold text-sm hover:bg-black transition-colors shadow-sm">
-                Aktiviteyi Kaydet
+              <button onClick={() => setActiveTab("AYARLAR")} className="w-full bg-[#0b1b36] text-white py-3 rounded-md font-bold text-sm hover:bg-black transition-colors shadow-sm mt-4">
+                Sonraki Adım: Ayarlar
               </button>
             </div>
           )}
 
           {activeTab === "OTURUMLAR" && (
             <div className="flex flex-col items-center justify-center h-full text-center space-y-4 animate-in fade-in zoom-in duration-300">
-              <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center text-blue-500 text-4xl shadow-inner border border-blue-100">
-                🗓️
+              <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center text-green-500 text-4xl shadow-inner border border-green-100">
+                🚀
               </div>
-              <div className="max-w-[250px]">
-                <h3 className="font-bold text-gray-800 text-lg">Oturumlar</h3>
-                <p className="text-xs text-gray-500 mt-2 leading-relaxed">Sınavın ne zaman yapılacağı ve hangi öğrencilerin gireceği oturumlar üzerinden detaylı olarak yönetilir.</p>
+              <div className="max-w-[280px]">
+                <h3 className="font-bold text-gray-800 text-lg">Sınavı Yayımla</h3>
+                <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                  Sınavın ön atamasını yapıp ders sayfasına ekleyin. Soru ekleme işlemlerini daha sonra yapabilirsiniz.
+                </p>
               </div>
-              <button onClick={() => { onClose(); onOpenSession(form); }} className="mt-4 bg-[#0b1b36] hover:bg-[#1a2b4c] text-white px-8 py-3 rounded-md text-sm font-bold shadow-md transition-all flex items-center gap-2 hover:-translate-y-0.5">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Yeni Oturum Ekle
+              <button onClick={() => onSaveActivity(form)} className="mt-4 bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-md text-sm font-bold shadow-md transition-all flex items-center gap-2 hover:-translate-y-0.5">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                Sınavın Ön Atamasını Yap ve Yayımla
               </button>
             </div>
           )}
 
-          {(activeTab === "AYARLAR" || activeTab === "ŞUBE SEÇİMİ") && (
+          {activeTab === "AYARLAR" && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+               <div>
+                 <label className="block text-xs font-bold text-gray-700 mb-2">Sınavın Açılacağı Tarih & Saat <span className="text-red-500">*</span></label>
+                 <input type="datetime-local" value={form.start} onChange={e => setForm({...form, start: e.target.value})} className="w-full border border-gray-300 rounded-md px-3 py-2.5 text-sm focus:border-blue-500 outline-none text-gray-700 shadow-sm transition-all focus:ring-2 ring-blue-100" />
+               </div>
+               <div>
+                 <label className="block text-xs font-bold text-gray-700 mb-2">Sınavın Biteceği Tarih & Saat <span className="text-red-500">*</span></label>
+                 <input type="datetime-local" value={form.end} onChange={e => setForm({...form, end: e.target.value})} className="w-full border border-gray-300 rounded-md px-3 py-2.5 text-sm focus:border-blue-500 outline-none text-gray-700 shadow-sm transition-all focus:ring-2 ring-blue-100" />
+               </div>
+               <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
+                 Belirttiğiniz tarihler dışında sınav erişime kapalı olacaktır. Öğrenciler bu saat aralığında sınava giriş yapabilirler.
+               </p>
+               <button onClick={() => setActiveTab("OTURUMLAR")} className="w-full bg-[#0b1b36] text-white py-3 rounded-md font-bold text-sm hover:bg-black transition-colors shadow-sm mt-6">
+                 Sonraki Adım: Oturumlar
+               </button>
+            </div>
+          )}
+
+          {activeTab === "ŞUBE SEÇİMİ" && (
             <div className="flex flex-col items-center justify-center h-full text-center opacity-60">
-               <div className="text-4xl mb-3">⚙️</div>
-               <div className="text-sm font-bold text-gray-600">Bu sekme varsayılan değerlerle atlanmıştır.</div>
+               <div className="text-4xl mb-3">👥</div>
+               <div className="text-sm font-bold text-gray-600">Şube Seçimi yakında eklenecektir.</div>
             </div>
           )}
         </div>
