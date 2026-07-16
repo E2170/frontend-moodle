@@ -66,12 +66,13 @@ class external extends external_api {
                 'timeopen' => new external_value(PARAM_INT, 'Sinav Baslangic', VALUE_DEFAULT, 0),
                 'timeclose' => new external_value(PARAM_INT, 'Sinav Bitis', VALUE_DEFAULT, 0),
                 'maxbytes' => new external_value(PARAM_INT, 'Maksimum Dosya Boyutu', VALUE_DEFAULT, 0),
-                'maxfiles' => new external_value(PARAM_INT, 'Maksimum Dosya Sayisi', VALUE_DEFAULT, 0)
+                'maxfiles' => new external_value(PARAM_INT, 'Maksimum Dosya Sayisi', VALUE_DEFAULT, 0),
+                'externalurl' => new external_value(PARAM_RAW, 'Harici URL (or. YouTube)', VALUE_DEFAULT, '')
             )
         );
     }
 
-    public static function add_activity($courseid, $section, $type, $name, $description, $duedate = 0, $timeopen = 0, $timeclose = 0, $maxbytes = 0, $maxfiles = 0) {
+    public static function add_activity($courseid, $section, $type, $name, $description, $duedate = 0, $timeopen = 0, $timeclose = 0, $maxbytes = 0, $maxfiles = 0, $externalurl = '') {
         global $DB, $CFG, $USER;
 
         $params = self::validate_parameters(self::add_activity_parameters(), array(
@@ -84,7 +85,8 @@ class external extends external_api {
             'timeopen' => $timeopen,
             'timeclose' => $timeclose,
             'maxbytes' => $maxbytes,
-            'maxfiles' => $maxfiles
+            'maxfiles' => $maxfiles,
+            'externalurl' => $externalurl
         ));
 
         $context = \context_course::instance($params['courseid']);
@@ -109,14 +111,20 @@ class external extends external_api {
             throw new \moodle_exception("Ilgili bolum/hafta bulunamadi.");
         }
 
-        $moduleinfo = new \stdClass();
-        $moduleinfo->course = $course->id;
-        $moduleinfo->module = $module->id;
-        $moduleinfo->section = $params['section'];
-        $moduleinfo->visible = 1;
-        $moduleinfo->visibleoncoursepage = 1;
-
-        $cmid = add_course_module($moduleinfo);
+        $cm = new \stdClass();
+        $cm->course = $course->id;
+        $cm->module = $module->id;
+        $cm->section = $cw->section;
+        $cm->idnumber = '';
+        $cm->added = time();
+        $cm->score = 0;
+        $cm->indent = 0;
+        $cm->visible = 1;
+        $cm->visibleold = 1;
+        $cm->groupmode = 0;
+        $cm->groupingid = 0;
+        
+        $cmid = add_course_module($cm);
 
         $instance = new \stdClass();
         $instance->course = $course->id;
@@ -128,10 +136,7 @@ class external extends external_api {
         $instance->visible = 1;
 
         if ($params['type'] === 'assign') {
-            $instance->assignsubmission_onlinetext_enabled = 1;
-            $instance->assignsubmission_file_enabled = 1;
             $instance->alwaysshowdescription = 1;
-            $instance->preventlatesubmissions = 0;
             $instance->submissiondrafts = 0;
             $instance->requiresubmissionstatement = 0;
             
@@ -165,7 +170,7 @@ class external extends external_api {
                 }
             }
         } elseif ($params['type'] === 'url') {
-            $instance->externalurl = 'https://varsayilan-adres.com'; 
+            $instance->externalurl = $params['externalurl'] ? $params['externalurl'] : 'https://varsayilan-adres.com'; 
             $instance->display = 0;
         } elseif ($params['type'] === 'page') {
             $instance->content = $params['description'] ?: 'Sayfa icerigi';

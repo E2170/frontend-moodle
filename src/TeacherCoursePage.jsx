@@ -11,6 +11,101 @@ import { moodlePost } from "./moodleApi";
 // Removed local moodlePost
 
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// YouTube Özel Ekleme Modalı
+// ─────────────────────────────────────────────
+function YoutubeFormModal({ sectionNum, courseId, token, onClose, onSaved }) {
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!url.trim()) { setError("Lütfen bir YouTube URL'si girin."); return; }
+    
+    setLoading(true);
+    setError(null);
+    try {
+      // noembed ile youtube video bilgilerini çek
+      const noembedRes = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`);
+      const data = await noembedRes.json();
+      
+      let title = data.title || "YouTube Videosu";
+      if (data.error) {
+         title = "YouTube Videosu";
+      }
+
+      // Moodle API'ye url olarak kaydet
+      const payload = {
+        courseid: courseId,
+        section: sectionNum,
+        type: "url",
+        name: title,
+        description: "",
+        externalurl: url,
+        duedate: 0,
+        timeopen: 0,
+        timeclose: 0,
+        maxbytes: 0,
+        maxfiles: 0
+      };
+
+      const res = await moodlePost(token, "local_vueapi_add_activity", payload);
+
+      if (res && res.exception) {
+        throw new Error(res.message || "API hatası.");
+      }
+      if (Array.isArray(res) && res.length > 0 && res[0].error) {
+        throw new Error(res[0].error);
+      }
+
+      if (res && (res.status === "success" || res.status === true || res.cmid || res.activityid || res.id)) {
+        if (onSaved) onSaved();
+        onClose();
+      } else {
+        throw new Error("Kayıt yapılamadı.");
+      }
+
+    } catch (err) {
+      setError("Hata: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="bg-red-600 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-white">
+            <span className="text-2xl">▶️</span>
+            <span className="font-bold">YouTube Videosu Ekle</span>
+          </div>
+          <button onClick={onClose} className="text-red-200 hover:text-white font-bold text-xl">✕</button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-6">
+          {error && <div className="mb-4 text-red-600 text-sm bg-red-50 p-3 rounded-lg">{error}</div>}
+          <div className="mb-6">
+            <label className="block text-sm font-bold text-gray-700 mb-2">Video veya Playlist Linki</label>
+            <input type="url" required value={url} onChange={e => setUrl(e.target.value)} 
+                   placeholder="https://www.youtube.com/watch?v=..."
+                   className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all" />
+          </div>
+          
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={onClose} className="px-5 py-2 text-gray-600 hover:bg-gray-100 rounded-xl font-bold transition-colors">İptal</button>
+            <button type="submit" disabled={loading} className="px-5 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold disabled:opacity-50 transition-colors shadow-md shadow-red-200">
+              {loading ? "Ekleniyor..." : "Ekle"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // Aktivite Ekleme — Arka Planda Parametre Çekme (Native UI)
 // ─────────────────────────────────────────────
 function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSaved }) {
@@ -303,6 +398,7 @@ export default function TeacherCoursePage() {
   const [activityFormModal, setActivityFormModal] = useState(null); // { actType, sectionNum }
   const [almsQuizActivity, setAlmsQuizActivity] = useState(null); 
   const [almsSessionWizard, setAlmsSessionWizard] = useState(null);
+  const [youtubeModalOpen, setYoutubeModalOpen] = useState(null); // { sectionNum }
 
   const handleSelectActivityType = (actType) => {
     setIsActivityPanelOpen(false);
@@ -319,6 +415,8 @@ export default function TeacherCoursePage() {
 
     if (actType.id === "quiz") {
       setAlmsQuizActivity({ sectionNum: sNum });
+    } else if (actType.id === "youtube") {
+      setYoutubeModalOpen({ sectionNum: sNum });
     } else {
       setActivityFormModal({ actType, sectionNum: sNum });
     }
@@ -370,6 +468,7 @@ export default function TeacherCoursePage() {
     { id: "forum",         moodleId: "forum",          label: "Forum",        iconColor: "#4a90e2", emoji: "💬", desc: "Tartışma ortamı oluşturun." },
     { id: "assign",        moodleId: "assign",          label: "Ödev",         iconColor: "#9b59b6", emoji: "📝", desc: "Öğrencilerden görev isteyin." },
     { id: "quiz",          moodleId: "quiz",            label: "Sınav",        iconColor: "#003399", emoji: "📋", desc: "Çevrimiçi test oluşturun." },
+    { id: "youtube",       moodleId: "url",             label: "YouTube",      iconColor: "#ff0000", emoji: "▶️", desc: "Video veya playlist ekleyin." },
     { id: "resource",      moodleId: "resource",        label: "Doküman",      iconColor: "#f39c12", emoji: "📄", desc: "PDF, DOC dosya yükleyin." },
     { id: "url",           moodleId: "url",             label: "Link",         iconColor: "#00bcd4", emoji: "🔗", desc: "Dış kaynak URL paylaşın." },
     { id: "page",          moodleId: "page",            label: "Sayfa",        iconColor: "#27ae60", emoji: "📃", desc: "Zengin metin sayfası ekleyin." },
@@ -452,7 +551,7 @@ export default function TeacherCoursePage() {
           <span className="text-blue-600 font-black text-[10px] border border-blue-200 bg-blue-50 px-1 py-0.5 rounded tracking-tighter">C&gt;O</span>
           <span className="font-bold text-xs text-gray-700 uppercase truncate max-w-[220px]">{courseDetail.fullname}</span>
           <button onClick={() => setIsActivityPanelOpen(true)}
-            className="ml-2 w-6 h-6 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded text-white font-bold text-lg leading-none transition-colors"
+            className="ml-3 w-8 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded-full text-white font-bold text-xl leading-none transition-all shadow-md shadow-blue-200"
             title="Aktivite Ekle">
             +
           </button>
@@ -645,6 +744,16 @@ export default function TeacherCoursePage() {
           token={token}
           onClose={() => setActivityFormModal(null)}
           onSaved={() => { setActivityFormModal(null); fetchCourseData(); }}
+        />
+      )}
+
+      {youtubeModalOpen && (
+        <YoutubeFormModal
+          sectionNum={youtubeModalOpen.sectionNum}
+          courseId={courseId}
+          token={token}
+          onClose={() => setYoutubeModalOpen(null)}
+          onSaved={() => { setYoutubeModalOpen(null); fetchCourseData(); }}
         />
       )}
 
