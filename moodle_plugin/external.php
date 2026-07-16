@@ -137,8 +137,11 @@ class external extends external_api {
 
         if ($params['type'] === 'assign') {
             $instance->alwaysshowdescription = 1;
-            $instance->submissiondrafts = 0;
+            $instance->submissiondrafts = 1;
             $instance->requiresubmissionstatement = 0;
+            $instance->assignsubmission_file_enabled = 1;
+            $instance->assignsubmission_onlinetext_enabled = 1;
+            $instance->assignfeedback_comments_enabled = 1;
             
             // Postgres strict kuralları için varsayılanlar
             $instance->sendnotifications = 0;
@@ -157,8 +160,8 @@ class external extends external_api {
             $instance->markingallocation = 0;
 
             if ($params['duedate'] > 0) $instance->duedate = $params['duedate'];
-            if ($params['maxbytes'] > 0) $instance->maxbytes = $params['maxbytes'];
-            if ($params['maxfiles'] > 0) $instance->assignsubmission_file_maxfiles = $params['maxfiles'];
+            $instance->maxbytes = ($params['maxbytes'] > 0) ? $params['maxbytes'] : 0;
+            $instance->assignsubmission_file_maxfiles = ($params['maxfiles'] > 0) ? $params['maxfiles'] : 20;
         } elseif ($params['type'] === 'quiz') {
             $defaults = self::get_default_quiz_instance_fields();
             $defaults['timeopen'] = $params['timeopen'];

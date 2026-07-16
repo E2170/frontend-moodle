@@ -147,13 +147,14 @@ function AssignViewer({ mod, token, userId }) {
         "plugindata[onlinetext_editor][format]": 1,
         "plugindata[onlinetext_editor][itemid]": 0,
       });
-      if (save?.exception) throw new Error((save.message || "Kaydetme hatası.") + (save.debuginfo ? `\n(Detay: ${save.debuginfo})` : ""));
+      if (save?.exception) throw new Error("SAVE HATA: " + (save.message || "Kaydetme hatası.") + (save.debuginfo ? ` (Detay: ${save.debuginfo})` : ""));
 
       // Notlandırmaya gönder
-      await moodlePost(token, "mod_assign_submit_for_grading", {
+      const gradeRes = await moodlePost(token, "mod_assign_submit_for_grading", {
         assignmentid: mod.instance,
         acceptsubmissionstatement: 1,
       });
+      if (gradeRes?.exception) throw new Error("GRADING HATA: " + gradeRes.message);
 
       setMsg({ type: "success", text: "🎉 Ödeviniz başarıyla gönderildi!" });
       setFile(null);
