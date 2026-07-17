@@ -519,7 +519,6 @@ export default function TeacherCoursePage() {
     fetchCourseData(); 
   }, [fetchCourseData]);
 
-  // Moodle aktivite türü → bizim UI'ımız + Moodle'ın add parametresi
   const activityTypes = [
     { id: "forum",         moodleId: "forum",          label: "Forum",        iconColor: "#4a90e2", emoji: "💬", desc: "Tartışma ortamı oluşturun." },
     { id: "choice",        moodleId: "choice",         label: "Anket",        iconColor: "#1abc9c", emoji: "✅", desc: "Anket veya oylama oluşturun." },
@@ -528,10 +527,9 @@ export default function TeacherCoursePage() {
     { id: "assign",        moodleId: "assign",         label: "Ödev",         iconColor: "#9b59b6", emoji: "📝", desc: "Öğrencilerden görev isteyin." },
     { id: "scorm",         moodleId: "scorm",          label: "E-ders",       iconColor: "#6c5ce7", emoji: "📦", desc: "SCORM paketi yükleyin." },
     { id: "quiz",          moodleId: "quiz",           label: "Sınav",        iconColor: "#003399", emoji: "📋", desc: "Çevrimiçi test oluşturun." },
-    { id: "video",         moodleId: "url",            label: "Video",        iconColor: "#e74c3c", emoji: "🎬", desc: "Harici bir video linki ekleyin." },
     { id: "resource",      moodleId: "resource",       label: "Doküman",      iconColor: "#f39c12", emoji: "📄", desc: "PDF, DOC dosya yükleyin." },
     { id: "label",         moodleId: "label",          label: "Bilgi Notu",   iconColor: "#95a5a6", emoji: "🏷️", desc: "Bölüme bilgi veya açıklama ekleyin." },
-    { id: "youtube",       moodleId: "url",            label: "YouTube",      iconColor: "#ff0000", emoji: "▶️", desc: "Video veya playlist ekleyin." },
+    { id: "youtube",       moodleId: "url",            label: "YouTube",      iconColor: "#ff0000", emoji: <svg width="24" height="24" viewBox="0 0 24 24" fill="#ff0000"><path d="M21.582 6.186a2.628 2.628 0 0 0-1.85-1.85C18.1 3.9 12 3.9 12 3.9s-6.1 0-7.732.436a2.628 2.628 0 0 0-1.85 1.85C2 7.818 2 12 2 12s0 4.182.418 5.814a2.628 2.628 0 0 0 1.85 1.85C5.9 20.1 12 20.1 12 20.1s6.1 0 7.732-.436a2.628 2.628 0 0 0 1.85-1.85C22 16.182 22 12 22 12s0-4.182-.418-5.814zM9.912 15.472V8.528L15.95 12l-6.038 3.472z"/></svg>, desc: "Video veya playlist ekleyin." },
   ];
 
   const defaultWeeks = Array.from({ length: 16 }, (_, i) => ({ id: `default-${i}`, name: `HAFTA ${i + 1}`, modules: [] }));
@@ -669,7 +667,13 @@ export default function TeacherCoursePage() {
             ) : activeSection?.modules?.length > 0 ? (
               <div className="space-y-3 max-w-4xl mx-auto w-full">
                 {activeSection.modules.map(mod => {
-                  const meta = modMeta[mod.modname] || { icon: "📌", color: "bg-gray-50 text-gray-600 border-gray-100" };
+                  let meta = modMeta[mod.modname] || { icon: "📌", color: "bg-gray-50 text-gray-600 border-gray-100" };
+                  if (mod.modname === 'url') {
+                    const hasYoutube = mod.name.toLowerCase().includes('youtube') || mod.name.toLowerCase().includes('video') || mod.contents?.[0]?.fileurl?.includes('youtu');
+                    if (hasYoutube) {
+                      meta = { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21.582 6.186a2.628 2.628 0 0 0-1.85-1.85C18.1 3.9 12 3.9 12 3.9s-6.1 0-7.732.436a2.628 2.628 0 0 0-1.85 1.85C2 7.818 2 12 2 12s0 4.182.418 5.814a2.628 2.628 0 0 0 1.85 1.85C5.9 20.1 12 20.1 12 20.1s6.1 0 7.732-.436a2.628 2.628 0 0 0 1.85-1.85C22 16.182 22 12 22 12s0-4.182-.418-5.814zM9.912 15.472V8.528L15.95 12l-6.038 3.472z"/></svg>, color: "bg-red-50 text-red-600 border-red-100" };
+                    }
+                  }
                   return (
                     <div key={mod.id}
                       onClick={() => setSelectedModuleForView(mod)}

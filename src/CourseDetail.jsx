@@ -321,7 +321,13 @@ export default function CourseDetail() {
                         wiki:           { icon: "📖", color: "bg-lime-100 text-lime-600",    label: "Wiki" },
                         book:           { icon: "📕", color: "bg-rose-100 text-rose-600",    label: "Kitap" },
                       };
-                      const meta = modMeta[mod.modname] || { icon: "📌", color: "bg-gray-100 text-gray-600", label: mod.modname };
+                      let meta = modMeta[mod.modname] || { icon: "📌", color: "bg-gray-100 text-gray-600", label: mod.modname };
+                      if (mod.modname === 'url') {
+                        const hasYoutube = mod.name.toLowerCase().includes('youtube') || mod.name.toLowerCase().includes('video') || mod.contents?.[0]?.fileurl?.includes('youtu');
+                        if (hasYoutube) {
+                          meta = { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21.582 6.186a2.628 2.628 0 0 0-1.85-1.85C18.1 3.9 12 3.9 12 3.9s-6.1 0-7.732.436a2.628 2.628 0 0 0-1.85 1.85C2 7.818 2 12 2 12s0 4.182.418 5.814a2.628 2.628 0 0 0 1.85 1.85C5.9 20.1 12 20.1 12 20.1s6.1 0 7.732-.436a2.628 2.628 0 0 0 1.85-1.85C22 16.182 22 12 22 12s0-4.182-.418-5.814zM9.912 15.472V8.528L15.95 12l-6.038 3.472z"/></svg>, color: "bg-red-50 text-red-600 border border-red-100", label: "YouTube" };
+                        }
+                      }
                       const isClickable = mod.modname !== "bigbluebuttonbn";
 
                       return (

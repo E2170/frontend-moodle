@@ -713,7 +713,9 @@ function ResourceViewer({ mod, token }) {
     <div className="space-y-4">
       <SectionHeader mod={mod} />
       {files.length === 0 ? (
-        <div className="text-center py-10 text-gray-400 bg-white rounded-2xl border border-gray-200">Dosya bulunamadı.</div>
+        <div className="text-center py-10 text-gray-400 bg-white rounded-2xl border border-gray-200">
+          Bu dokümana şu an erişilemiyor. Dokümanın erişim süresi dolmuş veya dosya henüz yüklenmemiş olabilir.
+        </div>
       ) : (
         files.map((f, i) => {
           const url = getFileUrl(f.fileurl, token);
