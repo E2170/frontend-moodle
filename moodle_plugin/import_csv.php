@@ -5,10 +5,12 @@ require_once($CFG->dirroot . "/webservice/lib.php");
 require_once($CFG->dirroot . "/question/editlib.php");
 require_once($CFG->dirroot . "/question/format.php");
 require_once($CFG->dirroot . "/question/format/aiken/format.php");
+require_once($CFG->dirroot . "/question/format/gift/format.php");
 
 $token = required_param("wstoken", PARAM_ALPHANUM);
 $courseid = required_param("courseid", PARAM_INT);
-$aikentext = required_param("aiken", PARAM_RAW);
+$filetext = required_param("aiken", PARAM_RAW); // still keeping 'aiken' param name for backwards compatibility, but it could be gift text
+$qformat_type = optional_param("qformat", "aiken", PARAM_ALPHA);
 $categoryname = optional_param("categoryname", "", PARAM_TEXT);
 
 try {
@@ -55,16 +57,26 @@ try {
         }
     }
 
-    $tmpfile = tempnam(sys_get_temp_dir(), "aiken");
-    file_put_contents($tmpfile, $aikentext);
+    $tmpfile = tempnam(sys_get_temp_dir(), $qformat_type);
+    file_put_contents($tmpfile, $filetext);
 
-    $qformat = new qformat_aiken();
+    if ($qformat_type === "gift") {
+        $qformat = new qformat_gift();
+    } else {
+        $qformat = new qformat_aiken();
+    }
     $qformat->setCategory($category);
     $qformat->setContexts([$context]);
     
     // Moodle 4.x qformat_default uses ->filename
     $qformat->setFilename($tmpfile); 
     $qformat->displayprogress = false;
+
+    global $DB, $USER;
+    
+    // Get max question id before import
+    $max_id_record = $DB->get_record_sql("SELECT MAX(id) as maxid FROM {question}");
+    $max_id_before = $max_id_record && $max_id_record->maxid ? $max_id_record->maxid : 0;
 
     ob_start(); // hide the HTML output
     if (!$qformat->importprocess($tmpfile)) {
@@ -75,22 +87,15 @@ try {
     
     unlink($tmpfile);
 
-    // Get the number of questions we tried to import
-    $lines = explode("\n", $aikentext);
-    $questions = $qformat->readquestions($lines);
-    $qcount = count($questions);
+    // Get all questions created by this user after the max_id
+    $newqs = $DB->get_records_sql("SELECT id FROM {question} WHERE id > ? AND createdby = ? ORDER BY id ASC", [$max_id_before, $USER->id]);
     
     $created_ids = [];
-    if ($qcount > 0) {
-        global $DB, $USER;
-        $newqs = $DB->get_records_sql("SELECT id FROM {question} WHERE createdby = ? ORDER BY id DESC LIMIT ?", [$USER->id, $qcount]);
-        if ($newqs) {
-            foreach ($newqs as $q) {
-                $created_ids[] = $q->id;
-                // Moodle 4.0+ için taslaktan hazıra çek:
-                $DB->execute("UPDATE {question_versions} SET status = 'ready' WHERE questionid = ?", array($q->id));
-            }
-            $created_ids = array_reverse($created_ids);
+    if ($newqs) {
+        foreach ($newqs as $q) {
+            $created_ids[] = $q->id;
+            // Moodle 4.0+ için taslaktan hazıra çek:
+            $DB->execute("UPDATE {question_versions} SET status = 'ready' WHERE questionid = ?", array($q->id));
         }
     }
 

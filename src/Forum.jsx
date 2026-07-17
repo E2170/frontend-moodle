@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
-import { moodlePost } from "./moodleApi";
+import { useEffect, useCallback } from "react";
+
 import { useNavigate } from "react-router-dom";
 export default function Forum() {
-  const [loading, setLoading] = useState(true);
+
   const navigate = useNavigate();
 
     
@@ -15,11 +15,11 @@ export default function Forum() {
     }
 
     try {
-
+      // TODO: Fetch forum data
     } catch (error) {
       console.error("Forum verileri alınamadı:", error);
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   }, [navigate]);
 

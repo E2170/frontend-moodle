@@ -38,7 +38,7 @@ export default function TeacherCourses() {
   }, [navigate]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     fetchCoursesData();
   }, [fetchCoursesData]);
 

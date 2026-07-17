@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
-export function AlmsQuizActivityModal({ onClose, onOpenSession, onSaveActivity }) {
+export function AlmsQuizActivityModal({ onClose, onSaveActivity }) {
   const [activeTab, setActiveTab] = useState("İÇERİK");
   const [form, setForm] = useState({ name: "", intro: "", examNote: "", start: "", end: "" });
 

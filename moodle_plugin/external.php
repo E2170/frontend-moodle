@@ -287,6 +287,21 @@ class external extends external_api {
         
         $result = array();
         foreach ($categories as $cat) {
+            // Geçmişte içi boşalmış kategorileri otomatik temizle
+            if ($cat->parent != 0) {
+                $count = 0;
+                if ($DB->get_manager()->table_exists('question_bank_entries')) {
+                    $count = $DB->count_records('question_bank_entries', array('questioncategoryid' => $cat->id));
+                } else {
+                    $count = $DB->count_records('question', array('category' => $cat->id));
+                }
+                
+                if ($count == 0) {
+                    $DB->delete_records('question_categories', array('id' => $cat->id));
+                    continue; // Boş olduğu için sonuca ekleme, atla
+                }
+            }
+
             $result[] = array(
                 'id' => $cat->id,
                 'name' => $cat->name,
@@ -689,9 +704,37 @@ class external extends external_api {
             return array('status' => false, 'message' => 'Soru bulunamadı.');
         }
 
+        $categoryid = null;
+        if ($DB->record_exists('question_versions', array('questionid' => $qid))) {
+            $sql = "SELECT qbe.questioncategoryid 
+                    FROM {question_versions} qv
+                    JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+                    WHERE qv.questionid = ?";
+            $categoryid = $DB->get_field_sql($sql, array($qid));
+        } else if (isset($question->category)) {
+            $categoryid = $question->category;
+        }
+
         // Try to delete using questionlib method
         try {
             question_delete_question($qid);
+
+            if ($categoryid) {
+                $count = 0;
+                if ($DB->get_manager()->table_exists('question_bank_entries')) {
+                    $count = $DB->count_records('question_bank_entries', array('questioncategoryid' => $categoryid));
+                } else {
+                    $count = $DB->count_records('question', array('category' => $categoryid));
+                }
+
+                if ($count == 0) {
+                    $category = $DB->get_record('question_categories', array('id' => $categoryid));
+                    if ($category && $category->parent != 0) {
+                        $DB->delete_records('question_categories', array('id' => $categoryid));
+                    }
+                }
+            }
+
             return array('status' => true, 'message' => 'Soru başarıyla silindi.');
         } catch (Exception $e) {
             return array('status' => false, 'message' => $e->getMessage());

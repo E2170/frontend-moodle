@@ -22,7 +22,7 @@ const formatDate = (ts) => {
   });
 };
 
-const getFileUrl = (fileurl, token) => {
+const getFileUrl = (fileurl, token, forceDownload = false) => {
   if (!fileurl) return "";
   let url = fileurl.replace("https://moodle.argeyazilim.tr", "/api");
   if (url.includes("/pluginfile.php/") && !url.includes("/webservice/pluginfile.php/")) {
@@ -30,6 +30,9 @@ const getFileUrl = (fileurl, token) => {
   }
   if (!url.includes("token=")) {
     url += (url.includes("?") ? "&" : "?") + `token=${token}`;
+  }
+  if (forceDownload) {
+    url += "&forcedownload=1";
   }
   return url;
 };
@@ -92,7 +95,7 @@ const SectionHeader = ({ mod }) => {
 // ─────────────────────────────────────────────
 // ASSIGN (Ödev)
 // ─────────────────────────────────────────────
-function AssignViewer({ mod, token, userId }) {
+function AssignViewer({ mod, token }) {
   const [loading, setLoading] = useState(true);
   const [assignment, setAssignment] = useState(null);
   const [status, setStatus] = useState(null);
@@ -115,7 +118,7 @@ function AssignViewer({ mod, token, userId }) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { loadData(); }, [mod.instance]);
+  useEffect(() => { loadData(); }, [mod.instance]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async () => {
     if (!file) { setMsg({ type: "error", text: "Lütfen önce bir dosya seçin." }); return; }
@@ -329,6 +332,7 @@ function QuizViewer({ mod, token, userId, courseId }) {
   const [currentAttempt, setCurrentAttempt] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [quizLoading, setQuizLoading] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [reviewLoading, setReviewLoading] = useState(false);
 
   // Özel Onay Penceresi Modalı
@@ -726,10 +730,16 @@ function ResourceViewer({ mod, token }) {
                     {f.mimetype && <span>{f.mimetype}</span>}
                   </div>
                 </div>
-                <a href={url} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-1.5 bg-[#495057] hover:bg-[#343a40] text-white text-[13px] font-semibold px-4 py-2 rounded-xl transition-colors shrink-0">
-                  {isImage ? "🔍 Görüntüle" : isPdf ? "📖 Aç" : "⬇️ İndir"}
-                </a>
+                <div className="flex items-center gap-2 shrink-0">
+                  <a href={url} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-1.5 bg-[#495057] hover:bg-[#343a40] text-white text-[13px] font-semibold px-4 py-2 rounded-xl transition-colors">
+                    {isImage ? "🔍 Görüntüle" : isPdf ? "📖 Aç" : "🔍 Görüntüle"}
+                  </a>
+                  <a href={getFileUrl(f.fileurl, token, true)} download={f.filename} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-semibold px-4 py-2 rounded-xl transition-colors">
+                    ⬇️ İndir
+                  </a>
+                </div>
               </div>
 
               {isImage && (
@@ -791,7 +801,7 @@ function PageViewer({ mod, token, courseId }) {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [mod.id, courseId]);
+  }, [mod.id, courseId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return <LoadingSpinner />;
   return (
@@ -873,7 +883,7 @@ function ForumViewer({ mod, token }) {
       .then(r => setDiscussions(r.discussions || []))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [mod.instance]);
+  }, [mod.instance]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleDiscussion = async (d) => {
     if (expanded === d.id) { setExpanded(null); return; }
@@ -953,7 +963,7 @@ function ForumViewer({ mod, token }) {
 // ─────────────────────────────────────────────
 // CHOICE (Seçim / Anket)
 // ─────────────────────────────────────────────
-function ChoiceViewer({ mod, token, userId }) {
+function ChoiceViewer({ mod, token }) {
   const [loading, setLoading] = useState(true);
   const [choice, setChoice] = useState(null);
     const [selected, setSelected] = useState(null);
@@ -1085,7 +1095,7 @@ function FeedbackViewer({ mod, token }) {
     setSubmitting(true);
     setMsg(null);
     try {
-      const responses = items.map((item, idx) => ({
+      const responses = items.map((item) => ({
         name: `${item.typ}_${item.id}`,
         value: answers[item.id] ?? "",
       }));
@@ -1528,7 +1538,7 @@ function GenericViewer({ mod }) {
 // MAIN EXPORT
 // ─────────────────────────────────────────────
 export default function ActivityViewer({ mod, token, userId, courseId, onBack }) {
-  const [loading, setLoading] = useState(true);
+  
   const renderViewer = () => {
     switch (mod.modname) {
       case "assign":    return <AssignViewer    mod={mod} token={token} userId={userId} />;

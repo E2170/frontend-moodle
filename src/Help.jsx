@@ -71,7 +71,7 @@ export default function Help() {
             <h2 className="text-[20px] font-bold text-[#212529] mb-4">Sıkça Sorulan Sorular (SSS)</h2>
             <div className="bg-white border border-[#e9ecef] rounded-[12px] shadow-sm overflow-hidden">
               {filteredFaqs.length > 0 ? (
-                filteredFaqs.map((faq, index) => (
+                filteredFaqs.map((faq) => (
                   <div key={faq.id} className={`border-b border-[#e9ecef] last:border-0`}>
                     <button 
                       onClick={() => setOpenFaq(openFaq === faq.id ? null : faq.id)}

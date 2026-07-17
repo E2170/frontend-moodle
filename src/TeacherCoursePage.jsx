@@ -128,14 +128,54 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
   const [activeTab, setActiveTab] = useState("İÇERİK");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
 
   const handleSubmit = async () => {
     if (!form.name.trim()) { setError("Lütfen bir aktivite adı girin."); return; }
     if (actType.id === "url" && !form.externalurl.trim()) { setError("Lütfen bir URL adresi girin."); return; }
+    if (actType.id === "resource" && !selectedFile) { setError("Lütfen yüklenecek dokümanı seçin."); return; }
     
     setSubmitting(true);
     setError(null);
     try {
+      if (actType.id === "resource") {
+        const formData = new FormData();
+        formData.append("wstoken", token);
+        formData.append("courseid", courseId);
+        formData.append("section", sectionNum);
+        formData.append("name", form.name);
+        formData.append("description", form.intro || "");
+        
+        const toUnix = (str) => {
+          if (!str) return 0;
+          const ms = new Date(str).getTime();
+          return isNaN(ms) ? 0 : Math.floor(ms / 1000);
+        };
+        formData.append("timeopen", toUnix(form.timeopen));
+        formData.append("timeclose", toUnix(form.timeclose));
+        
+        formData.append("file", selectedFile);
+
+        const uploadRes = await fetch('/api/local/vueapi/upload_resource.php', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const rawText = await uploadRes.text();
+        let uploadData;
+        try {
+          uploadData = JSON.parse(rawText);
+        } catch(e) {
+          throw new Error("Sunucudan geçersiz yanıt alındı. " + rawText.substring(0, 500));
+        }
+
+        if (!uploadData.status) throw new Error(uploadData.message || "Dosya yüklenemedi.");
+        
+        if (onSaved) onSaved(uploadData.cmid);
+        onClose();
+        return;
+      }
+
       const toUnix = (str) => {
         if (!str) return 0;
         const ms = new Date(str).getTime();
@@ -264,10 +304,10 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
                   )}
                   
                   {actType.id === "resource" && (
-                    <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl text-sm text-orange-800">
-                      <strong className="block mb-1 font-bold">⚠️ Dosya Yükleme Sınırı</strong>
-                      Native arayüz üzerinden direkt dosya yüklemesi teknik kısıtlamalar nedeniyle kapalıdır. 
-                      Sadece aktiviteyi oluşturup, dosyayı sonradan Moodle üzerinden yükleyebilirsiniz.
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Yüklenecek Dosya *</label>
+                      <input type="file" onChange={(e) => setSelectedFile(e.target.files[0])}
+                        className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500 transition-all bg-gray-50 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                     </div>
                   )}
                 </div>
@@ -342,6 +382,22 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
                         </div>
                       </div>
                     </>
+                  ) : actType.id === "resource" ? (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Erişime Açılacağı Tarih</label>
+                          <input type="datetime-local" name="timeopen" value={form.timeopen} onChange={handleChange}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Erişime Kapanacağı Tarih</label>
+                          <input type="datetime-local" name="timeclose" value={form.timeclose} onChange={handleChange}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">Bu tarihleri ayarlayarak öğrencinin dokümana erişim süresini kısıtlayabilirsiniz. Tarih girmezseniz doküman sürekli açık kalır.</p>
+                    </>
                   ) : (
                     <div className="text-center py-10 text-gray-400">
                       <div className="text-4xl mb-3">⚙️</div>
@@ -372,7 +428,7 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
   );
 }
 
-import { AlmsQuizActivityModal, AlmsSessionWizard } from "./AlmsQuizFlow";
+import { AlmsQuizActivityModal } from "./AlmsQuizFlow";
 
 // ─────────────────────────────────────────────
 // ANA SAYFA
@@ -383,7 +439,7 @@ export default function TeacherCoursePage() {
   const location = useLocation();
   const { userInfo } = useAuth();
 
-  const [editItemDetails, setEditItemDetails] = useState(null);
+
 
   // Aktivite Silme Onay Modalı için State
   const [activityToDelete, setActivityToDelete] = useState(null);
@@ -397,7 +453,7 @@ export default function TeacherCoursePage() {
   const [isActivityPanelOpen, setIsActivityPanelOpen] = useState(false);
   const [activityFormModal, setActivityFormModal] = useState(null); // { actType, sectionNum }
   const [almsQuizActivity, setAlmsQuizActivity] = useState(null); 
-  const [almsSessionWizard, setAlmsSessionWizard] = useState(null);
+
   const [youtubeModalOpen, setYoutubeModalOpen] = useState(null); // { sectionNum }
 
   const handleSelectActivityType = (actType) => {
@@ -459,7 +515,7 @@ export default function TeacherCoursePage() {
   }, [courseId, navigate, location.state]);
 
   useEffect(() => { 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     fetchCourseData(); 
   }, [fetchCourseData]);
 

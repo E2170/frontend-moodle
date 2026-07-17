@@ -27,7 +27,7 @@ export default function TeacherCalendar() {
   // Dinamik olarak seçili haftanın günlerini hesaplama fonksiyonu
   const getWeekDays = useCallback((refDate) => {
     const startOfWeek = new Date(refDate);
-    const dayOffset = startOfWeek.getDay() === 0 ? 6 : startOfWeek.getDay() - 1; // Pazartesiyi 0 kabul etme (aslında Pazar'dan başlıyor görselde)
+
     // Görsele göre Pazar ilk gün (Sun 05, Mon 06)
     const offset = startOfWeek.getDay(); 
     startOfWeek.setDate(startOfWeek.getDate() - offset);
@@ -73,7 +73,7 @@ export default function TeacherCalendar() {
   }, [navigate]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     fetchCalendarData();
   }, [fetchCalendarData]);
 

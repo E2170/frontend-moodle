@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { moodlePost } from "./moodleApi";
 import { useParams, useNavigate } from "react-router-dom";
-import { useAuth } from "./AuthContext";
+
 import akuzemLogo from "./assets/akuzem-lg.png";
 import ActivityViewer from "./ActivityViewer";
 
@@ -13,6 +13,7 @@ export default function CourseDetail() {
   // Durum Yönetimleri
   const [userInfo, setUserInfo] = useState(null);
   const [courseInfo, setCourseInfo] = useState(null);
+  // eslint-disable-next-line no-unused-vars
   const [courses, setCourses] = useState([]);
   const [sections, setSections] = useState([]);
   const [activeSection, setActiveSection] = useState(null);
@@ -42,9 +43,7 @@ export default function CourseDetail() {
     }
 
     try {
-      const safeParse = async (res) => {
-        return res ? res : null;
-      };
+
 
       // User bilgisini çekiyoruz
       const userData = await moodlePost(token, "core_webservice_get_site_info");
@@ -57,10 +56,10 @@ export default function CourseDetail() {
           contentsData,
           courseFieldData
         ] = await Promise.all([
-          moodlePost(token, "core_enrol_get_users_courses", { userid: userData.userid }).catch(e => null),
-          moodlePost(token, "core_completion_get_activities_completion_status", { courseid: courseId, userid: userData.userid }).catch(e => null),
-          moodlePost(token, "core_course_get_contents", { courseid: courseId }).catch(e => null),
-          moodlePost(token, "core_course_get_courses_by_field", { field: "id", value: courseId }).catch(e => null)
+          moodlePost(token, "core_enrol_get_users_courses", { userid: userData.userid }).catch(() => null),
+          moodlePost(token, "core_completion_get_activities_completion_status", { courseid: courseId, userid: userData.userid }).catch(() => null),
+          moodlePost(token, "core_course_get_contents", { courseid: courseId }).catch(() => null),
+          moodlePost(token, "core_course_get_courses_by_field", { field: "id", value: courseId }).catch(() => null)
         ]);
 
         if (Array.isArray(coursesData)) {
@@ -130,7 +129,7 @@ export default function CourseDetail() {
   }, [courseId, navigate]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     const loadData = async () => {
       await fetchCourseDetails();
     };
@@ -138,7 +137,7 @@ export default function CourseDetail() {
   }, [fetchCourseDetails]);
 
   
-  const unreadMessagesCount = 0;
+
 
   // const [currentUnixTime] = useState(() => Math.floor(Date.now() / 1000));
 

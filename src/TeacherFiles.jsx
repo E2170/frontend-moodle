@@ -29,90 +29,55 @@ export default function TeacherFiles() {
       const userData = await moodlePost(token, "core_webservice_get_site_info");
 
       if (userData && userData.userid) {
-        
-
         try {
-          const filesData = await moodlePost(token, "core_user_get_private_files", { userid: userData.userid });
-
-          if (Array.isArray(filesData) && filesData.length > 0) {
-            setFiles(filesData);
-          } else {
-            // Arayüz testi için statik veri (Moodle API aktif olana kadar)
-            setFiles([
-              {
-                id: 1,
-                name: "Turk_Anayas...",
-                ext: ".pptx",
-                date: "02.06.2026 20:13",
-                size: "16 MB",
-                type: "Paylaşılan Dosyalar",
-                uploader: "TUBA AYKA...",
-              },
-              {
-                id: 2,
-                name: "BakininHaza...",
-                ext: ".pdf",
-                date: "18.05.2026 11:59",
-                size: "209 KB",
-                type: "Paylaşılan Dosyalar",
-                uploader: "ALİ İRFAN AY...",
-              },
-              {
-                id: 3,
-                name: "Proje4.pdf",
-                ext: ".pdf",
-                date: "06.05.2026 13:13",
-                size: "87 KB",
-                type: "Özel Dosyalar",
-                uploader: "AHMET ERT...",
-              },
-              {
-                id: 4,
-                name: "Proje4.zip",
-                ext: ".zip",
-                date: "06.05.2026 13:13",
-                size: "62 KB",
-                type: "Özel Dosyalar",
-                uploader: "AHMET ERT...",
-              },
-              {
-                id: 5,
-                name: "Proje3.pdf",
-                ext: ".pdf",
-                date: "29.04.2026 13:15",
-                size: "87 KB",
-                type: "Özel Dosyalar",
-                uploader: "AHMET ERT...",
-              },
-              {
-                id: 6,
-                name: "Proje3.zip",
-                ext: ".zip",
-                date: "29.04.2026 13:15",
-                size: "59 KB",
-                type: "Özel Dosyalar",
-                uploader: "AHMET ERT...",
-              },
-              {
-                id: 7,
-                name: "BILGI_GUVE...",
-                ext: ".pdf",
-                date: "25.04.2026 15:14",
-                size: "66 KB",
-                type: "Özel Dosyalar",
-                uploader: "AHMET ERT...",
-              },
-              {
-                id: 8,
-                name: "SEO_FINAL_...",
-                ext: ".pdf",
-                date: "25.04.2026 14:57",
-                size: "79 KB",
-                type: "Özel Dosyalar",
-                uploader: "AHMET ERT...",
-              },
-            ]);
+          // 1. Önce hocanın derslerini al
+          const courses = await moodlePost(token, "core_enrol_get_users_courses", { userid: userData.userid });
+          
+          let allFiles = [];
+          
+          if (Array.isArray(courses)) {
+             // 2. Her dersin içeriğini çek
+             const contentPromises = courses.map(course => moodlePost(token, "core_course_get_contents", { courseid: course.id }));
+             const contentsResults = await Promise.all(contentPromises);
+             
+             contentsResults.forEach((courseContent, index) => {
+                if (Array.isArray(courseContent)) {
+                   const courseName = courses[index].fullname;
+                   
+                   courseContent.forEach(section => {
+                      if (Array.isArray(section.modules)) {
+                         section.modules.forEach(mod => {
+                            // "resource" (Dosya) veya "folder" (Klasör) modüllerinin içindeki dosyalar
+                            if (mod.modname === "resource" || mod.modname === "folder" || mod.modname === "assign") {
+                               if (Array.isArray(mod.contents)) {
+                                  mod.contents.forEach(file => {
+                                     if (file.type === "file") {
+                                        allFiles.push({
+                                           id: file.filename + "_" + (file.timemodified || file.timecreated),
+                                           name: file.filename,
+                                           url: file.fileurl,
+                                           ext: "." + file.filename.split('.').pop().toLowerCase(),
+                                           date: new Date((file.timemodified || file.timecreated || Date.now() / 1000) * 1000).toLocaleString('tr-TR'),
+                                           size: file.filesize ? (file.filesize / 1024 > 1024 ? (file.filesize / 1024 / 1024).toFixed(2) + " MB" : (file.filesize / 1024).toFixed(2) + " KB") : "Bilinmiyor",
+                                           type: courseName,
+                                           uploader: userData.fullname || "Sistem"
+                                        });
+                                     }
+                                  });
+                               }
+                            }
+                         });
+                      }
+                   });
+                }
+             });
           }
+          
+          // Sort files by date descending (assuming newer first is better)
+          // Since dates are strings, we can sort by id if id contains timestamp, or sort before stringifying.
+          // Let's just set them.
+          setFiles(allFiles);
+          
         } catch (e) {
           console.error("Dosya servisine ulaşılamadı", e);
         }
@@ -136,6 +101,21 @@ export default function TeacherFiles() {
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const getFileUrl = (url, forceDownload = false) => {
+    let newUrl = url.replace("https://moodle.argeyazilim.tr", "/api");
+    if (newUrl.includes("/pluginfile.php/") && !newUrl.includes("/webservice/pluginfile.php/")) {
+      newUrl = newUrl.replace("/pluginfile.php/", "/webservice/pluginfile.php/");
+    }
+    const token = localStorage.getItem("moodle_token");
+    if (!newUrl.includes("token=")) {
+      newUrl += (newUrl.includes("?") ? "&" : "?") + "token=" + token;
+    }
+    if (forceDownload) {
+      newUrl += "&forcedownload=1";
+    }
+    return newUrl;
   };
 
   const getFileIcon = (ext) => {
@@ -256,15 +236,16 @@ export default function TeacherFiles() {
                   <th className="px-6 py-4">Dosya Tipi</th>
                   <th className="px-6 py-4">Yükleme Tarihi</th>
                   <th className="px-6 py-4">Dosya Boyutu</th>
-                  <th className="px-6 py-4">Yükleme Tipi</th>
+                  <th className="px-6 py-4">İlişkili Ders</th>
                   <th className="px-6 py-4">Yükleyen Kullanıcı</th>
+                  <th className="px-6 py-4 text-right">İşlemler</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loading ? (
                   <tr>
                     <td
-                      colSpan="6"
+                      colSpan="7"
                       className="px-6 py-8 text-center text-sm text-gray-400"
                     >
                       Yükleniyor...
@@ -273,7 +254,7 @@ export default function TeacherFiles() {
                 ) : files.length === 0 ? (
                   <tr>
                     <td
-                      colSpan="6"
+                      colSpan="7"
                       className="px-6 py-8 text-center text-sm text-gray-400"
                     >
                       Henüz dosya yüklenmemiş.
@@ -285,8 +266,16 @@ export default function TeacherFiles() {
                       key={file.id}
                       className={`hover:bg-gray-50 transition-colors ${index % 2 === 1 ? "bg-[#fafafa]" : "bg-white"}`}
                     >
-                      <td className="px-6 py-3 text-sm text-gray-700 font-medium">
-                        {file.name}
+                      <td className="px-6 py-3 text-sm font-medium hover:text-blue-600 transition-colors">
+                        <a 
+                          href={getFileUrl(file.url, false)} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="text-[#0b1b36] hover:underline block max-w-[250px] truncate"
+                          title={file.name}
+                        >
+                          {file.name}
+                        </a>
                       </td>
                       <td className="px-6 py-3 text-sm text-gray-600 flex items-center gap-2">
                         {getFileIcon(file.ext)}
@@ -303,6 +292,18 @@ export default function TeacherFiles() {
                       </td>
                       <td className="px-6 py-3 text-sm text-gray-600">
                         {file.uploader}
+                      </td>
+                      <td className="px-6 py-3 text-sm text-right">
+                        <a 
+                          href={getFileUrl(file.url, true)} 
+                          download={file.name} 
+                          title="İndir" 
+                          className="inline-flex items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-600 p-2 rounded-lg transition-colors"
+                        >
+                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                           </svg>
+                        </a>
                       </td>
                     </tr>
                   ))

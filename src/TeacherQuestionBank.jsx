@@ -6,23 +6,50 @@ import { moodlePost } from "./moodleApi";
 // ─────────────────────────────────────────────
 // Çoklu Soru Ekleme Paneli (Sağdan Açılan Modal)
 // ─────────────────────────────────────────────
-function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId }) {
+function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categories }) {
   const [file, setFile] = useState(null);
   const [stats, setStats] = useState({ total: 0, valid: 0, invalid: 0 });
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [categoryName, setCategoryName] = useState("");
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       setFile(selectedFile);
-      // Dosya seçilince örnek bir okuma/analiz simülasyonu yapıyoruz
-      setStats({
-        total: 12,
-        valid: 12,
-        invalid: 0
-      });
+      
+      try {
+        const text = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve(ev.target.result);
+          reader.onerror = (err) => reject(err);
+          reader.readAsText(selectedFile);
+        });
+
+        const rows = text.split("\n").filter(r => r.trim());
+        let validCount = 0;
+        let startIdx = 0;
+        if (rows.length > 0 && rows[0].toLowerCase().includes("soru metni")) {
+           startIdx = 1;
+        }
+
+        for (let i = startIdx; i < rows.length; i++) {
+          const cols = rows[i].split(",").map(c => c.replace(/^"|"$/g, "").trim());
+          if (cols.length >= 7) {
+             validCount++;
+          }
+        }
+
+        const totalCount = rows.length > startIdx ? rows.length - startIdx : 0;
+        
+        setStats({
+          total: totalCount,
+          valid: validCount,
+          invalid: totalCount - validCount
+        });
+      } catch (err) {
+        console.error("Dosya okunurken hata:", err);
+      }
     }
   };
 
@@ -51,7 +78,7 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId }) {
       
       // Skip header row if exists
       let startIdx = 0;
-      if (rows[0].toLowerCase().includes("soru metni")) {
+      if (rows.length > 0 && rows[0].toLowerCase().includes("soru metni")) {
          startIdx = 1;
       }
 
@@ -78,6 +105,7 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId }) {
       formData.append("wstoken", token);
       formData.append("courseid", courseId);
       formData.append("aiken", aikenText);
+      formData.append("qformat", "aiken"); // Bulk upload currently uses aiken format for multiple choice
       if (categoryName.trim()) {
         formData.append("categoryname", categoryName.trim());
       }
@@ -160,9 +188,12 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId }) {
               <p className="text-sm text-gray-500 mb-4">Bu soruların ekleneceği konuyu veya kategoriyi yazabilirsiniz.</p>
             </div>
             <div className="w-[300px]">
-              <input type="text" value={categoryName} onChange={(e) => setCategoryName(e.target.value)}
+              <input type="text" list="bulk-category-list" value={categoryName} onChange={(e) => setCategoryName(e.target.value)}
                 placeholder="Örn: 1. Ünite - Temel Kavramlar"
                 className="w-full border-b-2 border-gray-200 py-2 text-sm text-gray-700 outline-none focus:border-[#0b1b36] bg-transparent font-medium transition-colors" />
+              <datalist id="bulk-category-list">
+                {categories && categories.map(c => <option key={c.id} value={c.name} />)}
+              </datalist>
             </div>
           </div>
 
@@ -268,6 +299,196 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId }) {
     </div>
   );
 }
+// ─────────────────────────────────────────────
+// Tek Soru Ekleme Paneli (Sağdan Açılan Modal)
+// ─────────────────────────────────────────────
+function SingleQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categories }) {
+  const [questionText, setQuestionText] = useState("");
+  const [questionType, setQuestionType] = useState("Çoktan Seçmeli");
+  const [options, setOptions] = useState({ A: "", B: "", C: "", D: "", E: "" });
+  const [correctAnswer, setCorrectAnswer] = useState("A");
+  const [tfAnswer, setTfAnswer] = useState("T");
+  const [categoryName, setCategoryName] = useState("");
+  
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+
+  const handleUpload = async () => {
+    if (!questionText.trim()) {
+      showAlert("Lütfen soru metnini giriniz.");
+      return;
+    }
+    if (questionType === "Çoktan Seçmeli" && (!options.A.trim() || !options.B.trim())) {
+      showAlert("En az A ve B şıklarını doldurunuz.");
+      return;
+    }
+    if (!courseId) {
+      showAlert("Ders bilgisi bulunamadı. Lütfen ders sayfasından tekrar giriş yapın.");
+      return;
+    }
+    setIsUploading(true);
+
+    try {
+      let fileText = "";
+      let format = "gift";
+      const escapedQuestionText = questionText.replace(/~/g, "\\~").replace(/=/g, "\\=").replace(/{/g, "\\{").replace(/}/g, "\\}");
+
+      if (questionType === "Çoktan Seçmeli") {
+        fileText = `::Yeni Soru:: ${escapedQuestionText} {`;
+        const opts = ['A', 'B', 'C', 'D', 'E'];
+        for (const opt of opts) {
+          if (options[opt].trim()) {
+            const isCorrect = (correctAnswer === opt);
+            const prefix = isCorrect ? "=" : "~";
+            const optEscaped = options[opt].trim().replace(/~/g, "\\~").replace(/=/g, "\\=").replace(/{/g, "\\{").replace(/}/g, "\\}");
+            fileText += `\n${prefix}${optEscaped}`;
+          }
+        }
+        fileText += "\n}";
+      } else if (questionType === "Doğru / Yanlış") {
+        fileText = `::Yeni Soru:: ${escapedQuestionText} {${tfAnswer}}`;
+      } else if (questionType === "Klasik") {
+        fileText = `::Yeni Soru:: ${escapedQuestionText} {}`;
+      }
+
+      const token = localStorage.getItem("moodle_token");
+      const formData = new FormData();
+      formData.append("wstoken", token);
+      formData.append("courseid", courseId);
+      formData.append("aiken", fileText);
+      formData.append("qformat", format);
+      if (categoryName.trim()) {
+        formData.append("categoryname", categoryName.trim());
+      }
+
+      const res = await fetch("/api/local/vueapi/import_csv.php", {
+        method: "POST",
+        body: formData
+      });
+      
+      const data = await res.json();
+      if (!res.ok || !data.status) {
+         throw new Error(data.message || "Bilinmeyen bir hata oluştu.");
+      }
+
+      const qsWithIds = [{
+        id: (data.question_ids && data.question_ids[0]) ? data.question_ids[0] : (Date.now() + Math.random()),
+        text: questionText,
+        type: questionType
+      }];
+
+      setUploadSuccess(true);
+      setTimeout(() => {
+        onClose();
+        if (onUploadSuccess) onUploadSuccess(qsWithIds);
+      }, 1500);
+
+    } catch (e) {
+       showAlert("Kaydetme hatası: " + e.message);
+    } finally {
+       setIsUploading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
+      <div className="relative w-full max-w-[800px] bg-white h-full shadow-2xl flex flex-col animate-slide-in-right">
+        <div className="flex items-center justify-between px-8 py-6 border-b border-gray-100 bg-white shrink-0">
+          <div className="flex items-center gap-3">
+            <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <h2 className="text-xl font-bold text-gray-800">Tek Soru Ekle</h2>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-10 space-y-8">
+          
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Soru Tipi <span className="text-red-500">*</span></label>
+            <select value={questionType} onChange={(e) => setQuestionType(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="Çoktan Seçmeli">Çoktan Seçmeli</option>
+              <option value="Doğru / Yanlış">Doğru / Yanlış</option>
+              <option value="Klasik">Klasik (Yazılı)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Konu / Kategori (İsteğe Bağlı)</label>
+            <input type="text" list="category-list" value={categoryName} onChange={(e) => setCategoryName(e.target.value)}
+              placeholder="Yeni bir kategori yazın veya listeden seçin..."
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <datalist id="category-list">
+              {categories && categories.map(c => <option key={c.id} value={c.name} />)}
+            </datalist>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Soru Metni <span className="text-red-500">*</span></label>
+            <textarea rows="4" value={questionText} onChange={(e) => setQuestionText(e.target.value)}
+              placeholder="Sorunuzu buraya yazın..."
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+          </div>
+
+          {questionType === "Çoktan Seçmeli" && (
+            <div className="space-y-4 border-t border-gray-100 pt-6">
+              <h3 className="text-base font-bold text-gray-800">Şıklar ve Doğru Cevap</h3>
+              {['A', 'B', 'C', 'D', 'E'].map((opt) => (
+                <div key={opt} className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 w-24 shrink-0">
+                    <input type="radio" name="correctAnswer" id={`correct-${opt}`} checked={correctAnswer === opt} onChange={() => setCorrectAnswer(opt)} className="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500" />
+                    <label htmlFor={`correct-${opt}`} className="text-sm font-bold text-gray-700 cursor-pointer">{opt} Şıkkı:</label>
+                  </div>
+                  <input type="text" value={options[opt]} onChange={(e) => setOptions({...options, [opt]: e.target.value})}
+                    placeholder={`${opt} şıkkını yazın...`}
+                    className={`flex-1 border rounded-lg px-4 py-2 text-sm focus:outline-none ${correctAnswer === opt ? 'border-green-400 bg-green-50 focus:ring-2 focus:ring-green-500' : 'border-gray-300 focus:ring-2 focus:ring-blue-500'}`} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {questionType === "Doğru / Yanlış" && (
+            <div className="space-y-4 border-t border-gray-100 pt-6">
+              <h3 className="text-base font-bold text-gray-800">Doğru Cevap</h3>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="tfAnswer" value="T" checked={tfAnswer === "T"} onChange={() => setTfAnswer("T")} className="w-5 h-5 text-green-600 focus:ring-green-500" />
+                  <span className="font-bold text-gray-700">Doğru</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="tfAnswer" value="F" checked={tfAnswer === "F"} onChange={() => setTfAnswer("F")} className="w-5 h-5 text-red-600 focus:ring-red-500" />
+                  <span className="font-bold text-gray-700">Yanlış</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-between items-center shrink-0">
+          <button onClick={onClose} className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-8 py-3 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 shadow-sm">
+            İptal
+          </button>
+          {uploadSuccess ? (
+            <button className="bg-green-600 text-white px-10 py-3 rounded-lg text-sm font-bold flex items-center gap-2 shadow-md">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              Başarıyla Eklendi!
+            </button>
+          ) : (
+            <button onClick={handleUpload} disabled={isUploading} className="bg-[#0b1b36] hover:bg-black text-white px-10 py-3 rounded-lg text-sm font-bold transition-all shadow-md flex items-center gap-2 disabled:opacity-50">
+              {isUploading ? "Kaydediliyor..." : "Soruyu Kaydet"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function TeacherQuestionBank() {
   // const [loading, setLoading] = useState(true);
@@ -280,6 +501,7 @@ export default function TeacherQuestionBank() {
   
   // Modal State
   const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
+  const [isSingleAddOpen, setIsSingleAddOpen] = useState(false);
 
   // Arama / Sonuç State'leri
   const [isSearching, setIsSearching] = useState(false);
@@ -341,7 +563,7 @@ export default function TeacherQuestionBank() {
   }, [navigate]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     fetchQuestionBankData();
   }, [fetchQuestionBankData]);
 
@@ -557,10 +779,7 @@ export default function TeacherQuestionBank() {
               Çoklu Soru Ekle
             </button>
             <button 
-              onClick={() => {
-                showAlert("Soruları tek tek girmek yerine 'Çoklu Soru Ekle' panelini kullanarak Excel ile yükleme yapmanız önerilir.");
-                setIsBulkAddOpen(true);
-              }}
+              onClick={() => setIsSingleAddOpen(true)}
               className="bg-[#0b1b36] hover:bg-[#1a2b4c] text-white px-5 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 shadow-sm"
             >
               + Yeni Soru
@@ -833,7 +1052,18 @@ export default function TeacherQuestionBank() {
       {isBulkAddOpen && (
         <BulkQuestionUploadPanel 
           courseId={courseId || filters.course}
+          categories={categories}
           onClose={() => setIsBulkAddOpen(false)}
+          onUploadSuccess={handleBulkUploadSuccess}
+        />
+      )}
+
+      {/* Tek Soru Ekle Modal */}
+      {isSingleAddOpen && (
+        <SingleQuestionUploadPanel 
+          courseId={courseId || filters.course}
+          categories={categories}
+          onClose={() => setIsSingleAddOpen(false)}
           onUploadSuccess={handleBulkUploadSuccess}
         />
       )}

@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { moodlePost } from "./moodleApi";
-import { useNavigate } from "react-router-dom";
 
 const AuthContext = createContext();
 
@@ -67,7 +66,7 @@ export function AuthProvider({ children }) {
     };
 
     fetchUserInfo();
-  }, [token]);
+  }, [token, logout]);
 
   const login = (newToken, role) => {
     localStorage.setItem("moodle_token", newToken);

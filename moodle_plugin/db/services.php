@@ -19,6 +19,7 @@ $services = [
         'requiredcapability' => '',
         'restrictedusers' => 0,
         'enabled' => 1,
-        'shortname' => 'vueapi'
+        'shortname' => 'vueapi',
+        'downloadfiles' => 1
     ]
 ];

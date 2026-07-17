@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from "react";
-import { moodlePost } from "./moodleApi";
+
 import { useNavigate } from "react-router-dom";
 
 export default function TeacherReports() {
@@ -18,14 +18,14 @@ export default function TeacherReports() {
     }
 
     try {
-
+      // TODO: Fetch reports data
     } catch (error) {
       console.error("Raporlar kullanıcı verisi hatası:", error);
     }
   }, [navigate]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     fetchReportsData();
   }, [fetchReportsData]);
 

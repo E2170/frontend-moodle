@@ -42,7 +42,7 @@ export default function LoginPage() {
       let data;
       try {
         data = JSON.parse(rawText);
-      } catch (parseError) {
+      } catch {
         console.error("[Login] JSON parse hatası. Gelen yanıt:", rawText.substring(0, 500));
         throw new Error(`Sunucu geçersiz bir yanıt döndürdü (HTTP ${response.status}). Lütfen daha sonra tekrar deneyin.`);
       }
@@ -121,7 +121,11 @@ export default function LoginPage() {
         // Token API yeterli, iframe CSRF sorunu yarattığı için direkt devam ediyoruz
         finishLogin();
       } else if (data.error) {
-        setErrorMsg(data.error);
+        if (data.error.toLowerCase().includes("invalid login") || data.error.toLowerCase().includes("hatalı")) {
+          setErrorMsg("Hatalı kullanıcı adı veya şifre girdiniz. Lütfen kontrol edip tekrar deneyiniz.");
+        } else {
+          setErrorMsg(data.error);
+        }
       } else {
         setErrorMsg(
           "Sunucu doğrulama işlemi sırasında bilinmeyen bir hata oluştu.",
@@ -149,6 +153,22 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-black/20"></div>
       </div>
 
+      {/* Tam Ekran Yükleniyor Overlay */}
+      {loading && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
+          <svg className="animate-spin h-14 w-14 text-blue-500 mb-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <div className="text-white text-2xl font-bold tracking-wide shadow-black drop-shadow-lg">
+            Bilgileriniz Doğrulanıyor...
+          </div>
+          <div className="text-blue-200 mt-2 text-base font-medium">
+            Lütfen sisteme giriş yapana kadar bekleyiniz
+          </div>
+        </div>
+      )}
+
       <div className="w-full lg:w-2/5 flex items-center justify-center p-8 bg-white shadow-[-20px_0_40px_rgba(0,0,0,0.05)] z-10">
         <div className="w-full max-w-md">
           <div className="mb-8 text-center lg:text-left">
@@ -160,7 +180,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {errorMsg && (
+          {errorMsg && !loading && (
             <div className="mb-4 p-3 text-sm text-red-700 bg-red-100 rounded-lg border border-red-200">
               {errorMsg}
             </div>
@@ -200,7 +220,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-3.5 bg-blue-700 text-white font-bold rounded-lg hover:bg-blue-800 transition-all disabled:opacity-70"
             >
-              {loading ? "Sistem Sorgulanıyor..." : "Giriş yap"}
+              {loading ? "Giriş yapılıyor..." : "Giriş yap"}
             </button>
           </form>
         </div>

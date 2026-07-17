@@ -3,12 +3,9 @@ import { moodlePost } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 
 export default function Calendar() {
-  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   // Temel Durum Yönetimleri
-      const [events, setEvents] = useState([]);
-
   // Navigasyon ve Tarih Yönetimi (Anlık tarih referans alınır)
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewType, setViewType] = useState("HAFTA"); // GÜN, HAFTA, AY
@@ -64,12 +61,12 @@ export default function Calendar() {
       const eventsData = await moodlePost(token, "core_calendar_get_action_events_by_timesort");
 
       if (eventsData && Array.isArray(eventsData.events)) {
-        setEvents(eventsData.events);
+        // setEvents(eventsData.events);
       }
     } catch (error) {
       console.error("Takvim verileri entegrasyon hatası:", error);
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   }, [navigate]);
 

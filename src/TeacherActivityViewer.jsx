@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 // ─────────────────────────────────────────────
@@ -12,12 +12,18 @@ const formatDate = (ts) => {
   return new Date(ts * 1000).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 };
 
-const getFileUrl = (fileurl, token) => {
+const getFileUrl = (fileurl, token, forceDownload = false) => {
   if (!fileurl) return "";
   let url = fileurl.replace("https://moodle.argeyazilim.tr", "/api");
-  if (url.includes("/pluginfile.php/") && !url.includes("/webservice/pluginfile.php/"))
+  if (url.includes("/pluginfile.php/") && !url.includes("/webservice/pluginfile.php/")) {
     url = url.replace("/pluginfile.php/", "/webservice/pluginfile.php/");
-  if (!url.includes("token=")) url += (url.includes("?") ? "&" : "?") + `token=${token}`;
+  }
+  if (!url.includes("token=")) {
+    url += (url.includes("?") ? "&" : "?") + `token=${token}`;
+  }
+  if (forceDownload) {
+    url += "&forcedownload=1";
+  }
   return url;
 };
 
@@ -509,10 +515,16 @@ function TeacherResourceViewer({ mod, token }) {
                         <div className="text-xs text-gray-400">{formatBytes(f.filesize)}{f.mimetype && ` · ${f.mimetype}`}</div>
                       </div>
                     </div>
-                    <a href={url} target="_blank" rel="noreferrer"
-                      className="bg-gray-800 hover:bg-black text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">
-                      {isImage ? "Görüntüle" : "İndir"}
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a href={url} target="_blank" rel="noreferrer"
+                        className="bg-gray-800 hover:bg-black text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">
+                        {isImage ? "Görüntüle" : isPdf ? "Aç" : "Görüntüle"}
+                      </a>
+                      <a href={getFileUrl(f.fileurl, token, true)} download={f.filename} target="_blank" rel="noreferrer"
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">
+                        İndir
+                      </a>
+                    </div>
                   </div>
                   {isPdf && (
                     <div className="rounded-lg overflow-hidden border border-gray-100" style={{ height: 500 }}>
@@ -767,7 +779,7 @@ function TeacherGenericViewer({ mod }) {
 // ANA BİLEŞEN
 // ─────────────────────────────────────────────
 export default function TeacherActivityViewer({ mod, token, courseId, onBack }) {
-  const [loading, setLoading] = useState(true);
+
   const renderViewer = () => {
     switch (mod.modname) {
       case "assign":   return <TeacherAssignViewer   mod={mod} token={token} courseId={courseId} />;

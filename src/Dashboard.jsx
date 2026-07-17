@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
 
   // Aktif/Arşiv Dersler Sekmesi
+  // eslint-disable-next-line no-unused-vars
   const menuTab = "active";
 
   const [activityStats, setActivityStats] = useState({
@@ -110,7 +111,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [navigate, token, userInfo]);
+  }, [token, userInfo]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -158,11 +159,11 @@ export default function Dashboard() {
   const activeCourses = courses.filter(
     (c) => !c.enddate || c.enddate === 0 || c.enddate > currentUnixTime,
   );
+  // eslint-disable-next-line no-unused-vars
   const archivedCourses = courses.filter(
     (c) => c.enddate && c.enddate !== 0 && c.enddate <= currentUnixTime,
   );
-  const displayedCourses =
-    menuTab === "active" ? activeCourses : archivedCourses;
+
 
   return (
     <div className="bg-white font-sans text-gray-800 antialiased h-full">
