@@ -132,13 +132,13 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
 
   const handleSubmit = async () => {
     if (!form.name.trim()) { setError("Lütfen bir aktivite adı girin."); return; }
-    if (actType.id === "url" && !form.externalurl.trim()) { setError("Lütfen bir URL adresi girin."); return; }
-    if (actType.id === "resource" && !selectedFile) { setError("Lütfen yüklenecek dokümanı seçin."); return; }
+    if (actType.moodleId === "url" && !form.externalurl.trim()) { setError("Lütfen bir URL adresi girin."); return; }
+    if (actType.moodleId === "resource" && !selectedFile) { setError("Lütfen yüklenecek dokümanı seçin."); return; }
     
     setSubmitting(true);
     setError(null);
     try {
-      if (actType.id === "resource") {
+      if (actType.moodleId === "resource") {
         const formData = new FormData();
         formData.append("wstoken", token);
         formData.append("courseid", courseId);
@@ -185,7 +185,7 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
       const payload = {
         courseid: courseId,
         section: sectionNum,
-        type: actType.id, // assign, quiz, url vb.
+        type: actType.moodleId,
         name: form.name,
         description: form.intro || "",
         // Tüm aktiviteler için varsayılan olarak (0) integer gönderilir:
@@ -196,7 +196,7 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
         maxfiles: parseInt(form.maxfiles, 10) || 0,
       };
 
-      if (actType.id === "url") {
+      if (actType.moodleId === "url") {
         payload.externalurl = form.externalurl || "";
       }
 
@@ -522,25 +522,16 @@ export default function TeacherCoursePage() {
   // Moodle aktivite türü → bizim UI'ımız + Moodle'ın add parametresi
   const activityTypes = [
     { id: "forum",         moodleId: "forum",          label: "Forum",        iconColor: "#4a90e2", emoji: "💬", desc: "Tartışma ortamı oluşturun." },
-    { id: "assign",        moodleId: "assign",          label: "Ödev",         iconColor: "#9b59b6", emoji: "📝", desc: "Öğrencilerden görev isteyin." },
-    { id: "quiz",          moodleId: "quiz",            label: "Sınav",        iconColor: "#003399", emoji: "📋", desc: "Çevrimiçi test oluşturun." },
-    { id: "youtube",       moodleId: "url",             label: "YouTube",      iconColor: "#ff0000", emoji: "▶️", desc: "Video veya playlist ekleyin." },
-    { id: "resource",      moodleId: "resource",        label: "Doküman",      iconColor: "#f39c12", emoji: "📄", desc: "PDF, DOC dosya yükleyin." },
-    { id: "url",           moodleId: "url",             label: "Link",         iconColor: "#00bcd4", emoji: "🔗", desc: "Dış kaynak URL paylaşın." },
-    { id: "page",          moodleId: "page",            label: "Sayfa",        iconColor: "#27ae60", emoji: "📃", desc: "Zengin metin sayfası ekleyin." },
-    { id: "label",         moodleId: "label",           label: "Etiket",       iconColor: "#95a5a6", emoji: "🏷️", desc: "Bölüme açıklama/başlık ekleyin." },
-    { id: "folder",        moodleId: "folder",          label: "Klasör",       iconColor: "#e67e22", emoji: "📁", desc: "Dosyaları klasörde toplayın." },
-    { id: "choice",        moodleId: "choice",          label: "Seçim",        iconColor: "#1abc9c", emoji: "✅", desc: "Anket/oylama oluşturun." },
-    { id: "feedback",      moodleId: "feedback",        label: "Geri Bildirim",iconColor: "#e74c3c", emoji: "📊", desc: "Geri bildirim formu ekleyin." },
-    { id: "glossary",      moodleId: "glossary",        label: "Sözlük",       iconColor: "#f39c12", emoji: "📚", desc: "Terimler sözlüğü oluşturun." },
-    { id: "book",          moodleId: "book",            label: "Kitap",        iconColor: "#e74c3c", emoji: "📕", desc: "Bölümlü içerik kitabı ekleyin." },
-    { id: "scorm",         moodleId: "scorm",           label: "SCORM",        iconColor: "#6c5ce7", emoji: "📦", desc: "SCORM paketi yükleyin." },
-    { id: "bigbluebutton", moodleId: "bigbluebuttonbn", label: "Canlı Ders",   iconColor: "#27ae60", emoji: "📹", desc: "Canlı sanal sınıf başlatın." },
-    { id: "lesson",        moodleId: "lesson",          label: "Ders",         iconColor: "#8e44ad", emoji: "🎓", desc: "İnteraktif ders materyali." },
-    { id: "wiki",          moodleId: "wiki",            label: "Wiki",         iconColor: "#2ecc71", emoji: "📖", desc: "İşbirlikçi wiki sayfası." },
-    { id: "survey",        moodleId: "survey",          label: "Anket",        iconColor: "#d35400", emoji: "📋", desc: "Standart anket uygulayın." },
-    { id: "workshop",      moodleId: "workshop",        label: "Atölye",       iconColor: "#c0392b", emoji: "🔨", desc: "Akran değerlendirmesi." },
-    { id: "h5pactivity",   moodleId: "h5pactivity",     label: "H5P",          iconColor: "#0099cc", emoji: "🎮", desc: "İnteraktif H5P içeriği." },
+    { id: "choice",        moodleId: "choice",         label: "Anket",        iconColor: "#1abc9c", emoji: "✅", desc: "Anket veya oylama oluşturun." },
+    { id: "bigbluebutton", moodleId: "bigbluebuttonbn",label: "Sanal Sınıf",  iconColor: "#27ae60", emoji: "📹", desc: "Canlı sanal sınıf başlatın." },
+    { id: "url",           moodleId: "url",            label: "Link",         iconColor: "#00bcd4", emoji: "🔗", desc: "Dış kaynak URL paylaşın." },
+    { id: "assign",        moodleId: "assign",         label: "Ödev",         iconColor: "#9b59b6", emoji: "📝", desc: "Öğrencilerden görev isteyin." },
+    { id: "scorm",         moodleId: "scorm",          label: "E-ders",       iconColor: "#6c5ce7", emoji: "📦", desc: "SCORM paketi yükleyin." },
+    { id: "quiz",          moodleId: "quiz",           label: "Sınav",        iconColor: "#003399", emoji: "📋", desc: "Çevrimiçi test oluşturun." },
+    { id: "video",         moodleId: "url",            label: "Video",        iconColor: "#e74c3c", emoji: "🎬", desc: "Harici bir video linki ekleyin." },
+    { id: "resource",      moodleId: "resource",       label: "Doküman",      iconColor: "#f39c12", emoji: "📄", desc: "PDF, DOC dosya yükleyin." },
+    { id: "label",         moodleId: "label",          label: "Bilgi Notu",   iconColor: "#95a5a6", emoji: "🏷️", desc: "Bölüme bilgi veya açıklama ekleyin." },
+    { id: "youtube",       moodleId: "url",            label: "YouTube",      iconColor: "#ff0000", emoji: "▶️", desc: "Video veya playlist ekleyin." },
   ];
 
   const defaultWeeks = Array.from({ length: 16 }, (_, i) => ({ id: `default-${i}`, name: `HAFTA ${i + 1}`, modules: [] }));
