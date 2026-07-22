@@ -497,7 +497,13 @@ function QuizViewer({ mod, token, userId, courseId }) {
 
   const finished = attempts.filter(a => a.state === "finished");
   const ongoing  = attempts.find(a => a.state === "inprogress");
-  const bestGrade = finished.reduce((b, a) => Math.max(b, parseFloat(a.sumgrades || 0)), 0);
+  const calculateScaledGrade = (sumgrades) => {
+    if (!quiz?.sumgrades || !quiz?.grade || parseFloat(quiz.sumgrades) === 0) return parseFloat(sumgrades || 0);
+    return (parseFloat(sumgrades || 0) / parseFloat(quiz.sumgrades)) * parseFloat(quiz.grade);
+  };
+  const bestSumGrade = finished.reduce((b, a) => Math.max(b, parseFloat(a.sumgrades || 0)), 0);
+  const bestGrade = calculateScaledGrade(bestSumGrade);
+  const gradeSystemMax = quiz?.grade > 0 ? quiz.grade : quiz?.sumgrades;
   const maxAttempts = quiz?.attempts || 0;
   const canAttempt = maxAttempts === 0 || finished.length < maxAttempts || !!ongoing;
 
@@ -511,7 +517,7 @@ function QuizViewer({ mod, token, userId, courseId }) {
         <div className={`rounded-2xl border p-6 text-center ${passed ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
           <div className="text-5xl mb-3">{passed ? "🎉" : "😔"}</div>
           <div className={`text-[22px] font-bold mb-1 ${passed ? "text-green-700" : "text-red-700"}`}>{passed ? "Tebrikler!" : "Başarısız"}</div>
-          <div className="text-[15px] text-gray-600 mb-4">Puanınız: <strong>{grade.toFixed(1)}</strong>{quiz?.sumgrades ? ` / ${quiz.sumgrades}` : ""}</div>
+          <div className="text-[15px] text-gray-600 mb-4">Puanınız: <strong>{calculateScaledGrade(reviewData?.grade || 0).toFixed(1)}</strong>{gradeSystemMax ? ` / ${gradeSystemMax}` : ""}</div>
           <button onClick={() => { setMode("info"); setReviewData(null); setQuestions([]); }}
             className="bg-[#495057] hover:bg-[#343a40] text-white text-[13px] font-semibold px-6 py-2 rounded-xl transition-colors">
             ← Sınav Bilgisine Dön
@@ -662,7 +668,7 @@ function QuizViewer({ mod, token, userId, courseId }) {
           <span className="text-2xl">🏆</span>
           <div>
             <div className="text-[13px] font-bold text-green-800">En İyi Puanınız</div>
-            <div className="text-[20px] font-bold text-green-700">{bestGrade.toFixed(1)}{quiz?.sumgrades ? ` / ${quiz.sumgrades}` : ""}</div>
+            <div className="text-[20px] font-bold text-green-700">{bestGrade.toFixed(1)}{gradeSystemMax ? ` / ${gradeSystemMax}` : ""}</div>
           </div>
         </div>
       )}
@@ -678,7 +684,7 @@ function QuizViewer({ mod, token, userId, courseId }) {
                 </div>
                 <div className="flex items-center gap-3">
                   {a.state === "finished" && a.sumgrades !== null && (
-                    <div className="text-[13px] font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full">{parseFloat(a.sumgrades).toFixed(1)}{quiz?.sumgrades ? ` / ${quiz.sumgrades}` : ""}</div>
+                    <div className="text-[13px] font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full">{calculateScaledGrade(a.sumgrades).toFixed(1)}{gradeSystemMax ? ` / ${gradeSystemMax}` : ""}</div>
                   )}
                   <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${a.state==="finished" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
                     {a.state === "finished" ? "Tamamlandı" : "Devam Ediyor"}

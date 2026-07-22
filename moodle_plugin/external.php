@@ -38,7 +38,7 @@ class external extends external_api {
             'navmethod' => 'free',
             'shuffleanswers' => 1,
             'sumgrades' => 0,
-            'grade' => 10,
+            'grade' => 100,
             'browsersecurity' => '-',
             'quizpassword' => '',
             'subnet' => '',
