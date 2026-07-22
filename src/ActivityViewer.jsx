@@ -1513,6 +1513,192 @@ function WikiViewer({ mod, token, courseId }) {
 }
 
 // ─────────────────────────────────────────────
+// BigBlueButtonViewer
+// ─────────────────────────────────────────────
+function BigBlueButtonViewer({ mod, token, userId }) {
+  const [joining, setJoining] = useState(false);
+  const [meetingInfo, setMeetingInfo] = useState(null);
+  const [recordings, setRecordings] = useState([]);
+  const [loadingBBB, setLoadingBBB] = useState(true);
+
+  useEffect(() => {
+    async function fetchBBBData() {
+      try {
+        const info = await moodlePost(token, "mod_bigbluebuttonbn_meeting_info", {
+          bigbluebuttonbnid: mod.instance,
+          groupid: 0
+        });
+        setMeetingInfo(info);
+
+        let recs = null;
+        try {
+          const res = await fetch(`/api/local/vueapi/get_recordings.php?token=${token}&cmid=${mod.id}&bbbid=${mod.instance}`);
+          if (res.ok) {
+            recs = await res.json();
+          }
+        } catch(e) {
+          console.error("Custom recording fetch error", e);
+        }
+        
+        if (recs && recs.tabledata && recs.tabledata.data) {
+          try {
+            const parsed = JSON.parse(recs.tabledata.data);
+            setRecordings(parsed);
+          } catch(e) {}
+        }
+      } catch(e) {
+        console.error(e);
+      } finally {
+        setLoadingBBB(false);
+      }
+    }
+    fetchBBBData();
+  }, [mod.instance, token]);
+
+  const handleJoin = async () => {
+    setJoining(true);
+    try {
+      // Proxy veya autologin sorunlarını (IP mismatch) aşmak için Moodle'a özel hazırladığımız
+      // login_and_join.php scriptine token ile istek atıp doğrudan BBB'ye giriyoruz.
+      const targetUrl = `https://moodle.argeyazilim.tr/local/vueapi/login_and_join.php?token=${token}&cmid=${mod.id}`;
+      window.open(targetUrl, '_blank');
+    } catch(e) {
+      console.error(e);
+    }
+    setJoining(false);
+  };
+
+  const hasEnded = meetingInfo && meetingInfo.startedat > 0 && !meetingInfo.statusrunning;
+  const isClosed = meetingInfo && meetingInfo.statusclosed;
+  const isHiddenOrError = meetingInfo && meetingInfo.exception;
+  const notStarted = meetingInfo && !meetingInfo.statusopen && !meetingInfo.statusrunning && !isClosed && !isHiddenOrError;
+  const waitingForModerator = meetingInfo && meetingInfo.statusopen && !meetingInfo.statusrunning && !meetingInfo.canjoin;
+  
+  const canJoin = meetingInfo ? (meetingInfo.canjoin && !hasEnded && !isHiddenOrError) : true;
+
+  let errorMessage = "Bu oturuma şu anda giriş yapılamaz.";
+  if (isHiddenOrError) errorMessage = "Bu oturumun canlı yayın süresi dolmuş veya erişime kapatılmıştır. Aşağıdan (varsa) geçmiş ders kayıtlarını izleyebilirsiniz.";
+  else if (hasEnded) errorMessage = "Bu oturum hoca tarafından sonlandırılmış ve katılım kapatılmıştır.";
+  else if (isClosed) errorMessage = "Bu oturumun bitiş süresi geçmiş ve katılım kapatılmıştır.";
+  else if (notStarted) errorMessage = "Bu oturumun başlangıç saati henüz gelmedi. (Not: Cihazınız ile sunucu saati arasında 1-2 dakikalık fark olabilir, lütfen biraz bekleyip sayfayı yenileyin).";
+  else if (waitingForModerator) errorMessage = "Oturum hazır, ancak öğretmenin derse girip oturumu başlatması bekleniyor.";
+  else errorMessage += "\nDetay: Katılım şu anda mümkün değil.";
+
+
+  
+  return (
+    <div className="space-y-4">
+      <SectionHeader mod={mod} />
+      <div className="bg-white rounded-2xl border border-gray-200 p-10 shadow-sm flex flex-col items-center justify-center text-center">
+        <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-4xl mb-6 shadow-inner">
+          📹
+        </div>
+        <h3 className="text-xl font-extrabold text-[#495057] mb-2">{mod.name}</h3>
+        <p className="text-sm text-gray-500 mb-8 max-w-md">
+          {mod.description ? (
+             <span dangerouslySetInnerHTML={{ __html: mod.description }} />
+          ) : "Sanal sınıf oturumu. Kameranızı ve mikrofonunuzu kontrol ederek derse katılabilirsiniz."}
+        </p>
+
+        {loadingBBB ? (
+          <div className="text-sm text-gray-400">Oturum durumu kontrol ediliyor...</div>
+        ) : (
+          <>
+            {canJoin ? (
+              <button 
+                onClick={handleJoin}
+                disabled={joining}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[15px] px-8 py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-200 flex items-center gap-2 disabled:opacity-50 mb-6"
+              >
+                {joining ? "Bağlanıyor..." : "Oturuma Katıl →"}
+              </button>
+            ) : (
+              <div className="mb-6 p-4 bg-blue-50 text-blue-700 rounded-xl font-medium border border-blue-100 text-sm flex items-start gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <div>{errorMessage}</div>
+              </div>
+            )}
+            
+            {recordings && recordings.length > 0 && (
+              <div className="w-full max-w-2xl mt-8">
+                <h4 className="text-lg font-bold text-gray-700 mb-4 text-left border-b pb-2">Geçmiş Ders Kayıtları</h4>
+                <div className="space-y-3">
+                  {recordings.map((rec, i) => {
+                     // The recording URL is usually inside the presentation/video object or the playback string.
+                     // Extract the href from the play button HTML if it's rendered as HTML.
+                     let href = "";
+                     if (rec.playback && rec.playback.includes('href=')) {
+                       const match = rec.playback.match(/href="([^"]+)"/);
+                       if (match) {
+                         const rawHref = match[1];
+                         try {
+                           const urlObj = new URL(rawHref);
+                           const action = urlObj.searchParams.get("action");
+                           const bn = urlObj.searchParams.get("bn");
+                           const rid = urlObj.searchParams.get("rid");
+                           
+                           if (action === 'play' && rid) {
+                             href = `https://moodle.argeyazilim.tr/local/vueapi/login_and_join.php?token=${token}&action=play&rid=${rid}`;
+                             if (bn) href += `&bn=${bn}`;
+                             else href += `&cmid=${mod.id}`;
+                           } else {
+                             href = rawHref;
+                           }
+                         } catch(e) {
+                           href = rawHref;
+                         }
+                       }
+                     }
+                     
+                     // Parse name from rec.recording HTML (Moodle 4.x returns HTML in this field)
+                     let recName = "Ders Kaydı";
+                     if (rec.recording) {
+                       const div = document.createElement('div');
+                       div.innerHTML = rec.recording;
+                       const text = div.textContent || div.innerText || "";
+                       if (text.trim()) recName = text.trim();
+                     } else if (rec.name) {
+                       recName = rec.name;
+                     }
+                     
+                     // Format date
+                     let formattedDate = "";
+                     if (rec.date) {
+                       const d = new Date(Number(rec.date));
+                       if (!isNaN(d.getTime())) {
+                         formattedDate = d.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+                       }
+                     }
+
+                     return (
+                      <div key={i} className="flex justify-between items-center p-4 bg-gray-50 rounded-xl border border-gray-100 hover:shadow-sm transition-shadow">
+                        <div className="text-left">
+                          <div className="font-semibold text-gray-800">{recName}</div>
+                          <div className="text-xs text-gray-500 mt-1">{formattedDate} • {rec.duration || "0"} dk</div>
+                        </div>
+                        {href ? (
+                          <a href={href} target="_blank" rel="noreferrer" className="text-sm font-bold text-indigo-600 bg-indigo-50 px-4 py-2 rounded-lg hover:bg-indigo-100 transition-colors">
+                            Kaydı İzle ▶
+                          </a>
+                        ) : (
+                          <div className="text-sm text-gray-400">İzleme linki bulunamadı</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // GENERIC fallback (Moodle'a yönlendirmez)
 // ─────────────────────────────────────────────
 function GenericViewer({ mod }) {
@@ -1548,6 +1734,7 @@ export default function ActivityViewer({ mod, token, userId, courseId, onBack })
       case "resource":  return <ResourceViewer  mod={mod} token={token} />;
       case "url":       return <UrlViewer       mod={mod} />;
       case "page":      return <PageViewer      mod={mod} token={token} courseId={courseId} />;
+      case "bigbluebuttonbn": return <BigBlueButtonViewer mod={mod} token={token} userId={userId} />;
       case "label":     return <LabelViewer     mod={mod} />;
       case "folder":    return <FolderViewer    mod={mod} token={token} />;
       case "forum":     return <ForumViewer     mod={mod} token={token} />;

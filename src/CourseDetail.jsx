@@ -19,6 +19,7 @@ export default function CourseDetail() {
   const [activeSection, setActiveSection] = useState(null);
   const [teacher, setTeacher] = useState(null);
   const [activeTab, setActiveTab] = useState("ders-icerigi");
+  const [activityDates, setActivityDates] = useState({});
   const [selectedActivity, setSelectedActivity] = useState(null);
   
   // Açılır Menü ve Sekme Durumları
@@ -61,6 +62,15 @@ export default function CourseDetail() {
           moodlePost(token, "core_course_get_contents", { courseid: courseId }).catch(() => null),
           moodlePost(token, "core_course_get_courses_by_field", { field: "id", value: courseId }).catch(() => null)
         ]);
+
+        try {
+          const datesRes = await moodlePost(token, "local_vueapi_get_course_dates", { courseid: courseId });
+          if (Array.isArray(datesRes)) {
+            const datesObj = {};
+            datesRes.forEach(d => { datesObj[d.cmid] = d.timeclose; });
+            setActivityDates(datesObj);
+          }
+        } catch (e) { console.error("Dates fetch error", e); }
 
         if (Array.isArray(coursesData)) {
           setCourses(coursesData);
@@ -328,14 +338,17 @@ export default function CourseDetail() {
                           meta = { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21.582 6.186a2.628 2.628 0 0 0-1.85-1.85C18.1 3.9 12 3.9 12 3.9s-6.1 0-7.732.436a2.628 2.628 0 0 0-1.85 1.85C2 7.818 2 12 2 12s0 4.182.418 5.814a2.628 2.628 0 0 0 1.85 1.85C5.9 20.1 12 20.1 12 20.1s6.1 0 7.732-.436a2.628 2.628 0 0 0 1.85-1.85C22 16.182 22 12 22 12s0-4.182-.418-5.814zM9.912 15.472V8.528L15.95 12l-6.038 3.472z"/></svg>, color: "bg-red-50 text-red-600 border border-red-100", label: "YouTube" };
                         }
                       }
-                      const isClickable = mod.modname !== "bigbluebuttonbn";
+                      const isClickable = mod.modname === 'bigbluebuttonbn' ? true : (mod.uservisible !== false);
 
                       return (
                         <div
                           key={mod.id}
-                          onClick={() => isClickable && setSelectedActivity(mod)}
+                          onClick={() => {
+                            if (!isClickable) return;
+                            setSelectedActivity(mod);
+                          }}
                           className={`flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 shadow-sm transition-all ${
-                            isClickable ? "cursor-pointer hover:shadow-md hover:border-gray-300" : "opacity-60"
+                            isClickable ? "cursor-pointer hover:shadow-md hover:border-gray-300" : "opacity-60 cursor-not-allowed"
                           }`}
                         >
                           <div className="flex items-center gap-4">
@@ -347,15 +360,32 @@ export default function CourseDetail() {
                                 {mod.name}
                               </h4>
                               <p className="text-[11px] text-gray-400 mt-0.5 m-0">{meta.label}</p>
+                              {activityDates[mod.id] ? (
+                                <span className="text-[10px] text-red-500 font-bold block mt-0.5">
+                                  Kapanış: {new Date(activityDates[mod.id] * 1000).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}
+                                </span>
+                              ) : null}
                             </div>
                           </div>
-                          {isClickable && (
+                          {isClickable ? (
                             <span className="text-[12px] font-semibold text-[#495057] bg-[#e9ecef] px-3 py-1 rounded-lg shrink-0">
                               Görüntüle →
                             </span>
-                          )}
-                          {!isClickable && (
-                            <span className="text-[11px] text-gray-400 shrink-0">Yakında</span>
+                          ) : (
+                            <span className="text-[11px] text-red-500 font-bold shrink-0">
+                              {(() => {
+                                if (mod.dates && Array.isArray(mod.dates)) {
+                                  const now = Date.now() / 1000;
+                                  const closeDate = mod.dates.find(d => d.timestamp && (d.id?.includes('close') || d.label?.toLowerCase().includes('kapan')));
+                                  if (closeDate && closeDate.timestamp < now) return "Süresi Geçti";
+                                }
+                                if (mod.availabilityinfo) {
+                                  const info = mod.availabilityinfo.toLowerCase();
+                                  if (info.includes("kadar") || info.includes("until") || info.includes("sona erdi")) return "Süresi Geçti";
+                                }
+                                return "Zamanı Gelmedi";
+                              })()}
+                            </span>
                           )}
                         </div>
                       );

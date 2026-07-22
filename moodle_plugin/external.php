@@ -67,12 +67,13 @@ class external extends external_api {
                 'timeclose' => new external_value(PARAM_INT, 'Sinav Bitis', VALUE_DEFAULT, 0),
                 'maxbytes' => new external_value(PARAM_INT, 'Maksimum Dosya Boyutu', VALUE_DEFAULT, 0),
                 'maxfiles' => new external_value(PARAM_INT, 'Maksimum Dosya Sayisi', VALUE_DEFAULT, 0),
-                'externalurl' => new external_value(PARAM_RAW, 'Harici URL (or. YouTube)', VALUE_DEFAULT, '')
+                'externalurl' => new external_value(PARAM_RAW, 'Harici URL (or. YouTube)', VALUE_DEFAULT, ''),
+                'record' => new external_value(PARAM_INT, 'Kayit (BBB)', VALUE_DEFAULT, 0)
             )
         );
     }
 
-    public static function add_activity($courseid, $section, $type, $name, $description, $duedate = 0, $timeopen = 0, $timeclose = 0, $maxbytes = 0, $maxfiles = 0, $externalurl = '') {
+    public static function add_activity($courseid, $section, $type, $name, $description, $duedate = 0, $timeopen = 0, $timeclose = 0, $maxbytes = 0, $maxfiles = 0, $externalurl = '', $record = 0) {
         global $DB, $CFG, $USER;
 
         $params = self::validate_parameters(self::add_activity_parameters(), array(
@@ -86,7 +87,8 @@ class external extends external_api {
             'timeclose' => $timeclose,
             'maxbytes' => $maxbytes,
             'maxfiles' => $maxfiles,
-            'externalurl' => $externalurl
+            'externalurl' => $externalurl,
+            'record' => $record
         ));
 
         $context = \context_course::instance($params['courseid']);
@@ -124,6 +126,19 @@ class external extends external_api {
         $cm->groupmode = 0;
         $cm->groupingid = 0;
         
+        if ($params['timeopen'] > 0 || $params['timeclose'] > 0) {
+            $availability = array('op' => '&', 'c' => array(), 'showc' => array());
+            if ($params['timeopen'] > 0) {
+                $availability['c'][] = array('type' => 'date', 'd' => '>=', 't' => $params['timeopen']);
+                $availability['showc'][] = true;
+            }
+            if ($params['timeclose'] > 0) {
+                $availability['c'][] = array('type' => 'date', 'd' => '<', 't' => $params['timeclose']);
+                $availability['showc'][] = true;
+            }
+            $cm->availability = json_encode($availability);
+        }
+
         $cmid = add_course_module($cm);
 
         $instance = new \stdClass();
@@ -172,6 +187,13 @@ class external extends external_api {
                     $instance->$key = $value;
                 }
             }
+        } elseif ($params['type'] === 'bigbluebuttonbn') {
+            if ($params['timeopen'] > 0) $instance->openingtime = $params['timeopen'];
+            if ($params['timeclose'] > 0) $instance->closingtime = $params['timeclose'];
+            $instance->type = 0; // Room/Activity with recordings
+            $instance->record = $params['record']; // Enable recording based on payload
+            $instance->recordings_preview = 1;
+            $instance->recordings_deleted = 1;
         } elseif ($params['type'] === 'url') {
             $instance->externalurl = $params['externalurl'] ? $params['externalurl'] : 'https://varsayilan-adres.com'; 
             $instance->display = 0;
@@ -192,6 +214,11 @@ class external extends external_api {
                 $DB->set_field('course_modules', 'instance', $instance->id, array('id' => $cmid));
                 course_add_cm_to_section($course, $cmid, $params['section']);
                 
+                // Force recording on for BigBlueButton
+                if ($params['type'] === 'bigbluebuttonbn') {
+                    $DB->set_field('bigbluebuttonbn', 'record', $params['record'], array('id' => $instance->id));
+                }
+
                 $cm = get_coursemodule_from_id($params['type'], $cmid, $course->id, false, MUST_EXIST);
                 \core\event\course_module_created::create_from_cm($cm, $context)->trigger();
                 
@@ -287,20 +314,8 @@ class external extends external_api {
         
         $result = array();
         foreach ($categories as $cat) {
-            // Geçmişte içi boşalmış kategorileri otomatik temizle
-            if ($cat->parent != 0) {
-                $count = 0;
-                if ($DB->get_manager()->table_exists('question_bank_entries')) {
-                    $count = $DB->count_records('question_bank_entries', array('questioncategoryid' => $cat->id));
-                } else {
-                    $count = $DB->count_records('question', array('category' => $cat->id));
-                }
-                
-                if ($count == 0) {
-                    $DB->delete_records('question_categories', array('id' => $cat->id));
-                    continue; // Boş olduğu için sonuca ekleme, atla
-                }
-            }
+            // Geçmişte içi boşalmış kategorileri okuma metodunda otomatik temizleme işlemi
+            // REST mimarisi prensiplerine ve veritabanı bütünlüğüne aykırı olduğu için kaldırılmıştır.
 
             $result[] = array(
                 'id' => $cat->id,

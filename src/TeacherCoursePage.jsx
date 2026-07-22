@@ -113,6 +113,7 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
     name: "", 
     intro: "", 
     externalurl: "",
+    record: "1",
     // Assign fields
     allowsubmissionsfromdate: "",
     duedate: "",
@@ -165,7 +166,7 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
         let uploadData;
         try {
           uploadData = JSON.parse(rawText);
-        } catch(e) {
+        } catch {
           throw new Error("Sunucudan geçersiz yanıt alındı. " + rawText.substring(0, 500));
         }
 
@@ -194,6 +195,7 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
         timeclose: toUnix(form.timeclose),
         maxbytes: parseInt(form.maxsizebytes || form.maxbytes, 10) || 0,
         maxfiles: parseInt(form.maxfiles, 10) || 0,
+        record: form.record === "1" ? 1 : 0
       };
 
       if (actType.moodleId === "url") {
@@ -351,6 +353,30 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
                         </div>
                       </div>
                     </>
+                  ) : actType.id === "bigbluebutton" ? (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Ders Başlangıç Zamanı</label>
+                          <input type="datetime-local" name="timeopen" value={form.timeopen} onChange={handleChange}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Ders Bitiş Zamanı</label>
+                          <input type="datetime-local" name="timeclose" value={form.timeclose} onChange={handleChange}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
+                        </div>
+                      </div>
+                      <div className="border-t border-gray-100 pt-5 grid grid-cols-1">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input type="checkbox" name="record" value="1" checked={form.record === "1"} 
+                            onChange={(e) => setForm(prev => ({ ...prev, record: e.target.checked ? "1" : "0" }))}
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                          <span className="text-sm font-bold text-gray-700">Ders kaydedilsin mi? (Daha sonra izlenebilmesi için)</span>
+                        </label>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">Zaman aralıklarını ayarlayarak canlı dersin öğrenciye hangi saatler arasında açık olacağını belirleyebilirsiniz.</p>
+                    </>
                   ) : actType.id === "quiz" ? (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -478,11 +504,32 @@ export default function TeacherCoursePage() {
     }
   };
 
+  const [activityDates, setActivityDates] = useState({});
+
   const fetchCourseData = useCallback(async () => {
     const token = localStorage.getItem("moodle_token");
     if (!token) { navigate("/"); return; }
     try {
       const sectionsData = await moodlePost(token, "core_course_get_contents", { courseid: courseId });
+
+      try {
+        const datesRes = await moodlePost(token, "local_vueapi_get_course_dates", { courseid: courseId });
+        if (Array.isArray(datesRes)) {
+          const datesObj = {};
+          datesRes.forEach(d => { datesObj[d.cmid] = d.timeclose; });
+          setActivityDates(datesObj);
+          
+          if (datesRes.length === 0) {
+            setCourseDetail(prev => ({ ...prev, fullname: prev.fullname + " (Tarihler: BOŞ)" }));
+          } else {
+            setCourseDetail(prev => ({ ...prev, fullname: prev.fullname + " (Tarihler: " + datesRes.length + " adet geldi!)" }));
+          }
+        } else {
+          setCourseDetail(prev => ({ ...prev, fullname: "NOT ARRAY: " + JSON.stringify(datesRes).substring(0, 50) }));
+        }
+      } catch (e) { 
+        setCourseDetail(prev => ({ ...prev, fullname: "CATCH ERROR: " + e.message }));
+      }
 
       if (Array.isArray(sectionsData)) {
         setSections(sectionsData);
@@ -676,7 +723,9 @@ export default function TeacherCoursePage() {
                   }
                   return (
                     <div key={mod.id}
-                      onClick={() => setSelectedModuleForView(mod)}
+                      onClick={() => {
+                        setSelectedModuleForView(mod);
+                      }}
                       className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between hover:shadow-md transition-all cursor-pointer group">
                       <div className="flex items-center gap-4">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg border ${meta.color}`}>
@@ -685,6 +734,11 @@ export default function TeacherCoursePage() {
                         <div>
                           <span className="font-bold text-sm text-gray-800 block">{mod.name}</span>
                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{mod.modname}</span>
+                          {activityDates[mod.id] ? (
+                            <span className="text-[10px] text-red-500 font-bold block mt-0.5">
+                              Kapanış: {new Date(activityDates[mod.id] * 1000).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                       <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">

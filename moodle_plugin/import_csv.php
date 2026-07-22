@@ -74,9 +74,7 @@ try {
 
     global $DB, $USER;
     
-    // Get max question id before import
-    $max_id_record = $DB->get_record_sql("SELECT MAX(id) as maxid FROM {question}");
-    $max_id_before = $max_id_record && $max_id_record->maxid ? $max_id_record->maxid : 0;
+    $time_before_import = time();
 
     ob_start(); // hide the HTML output
     if (!$qformat->importprocess($tmpfile)) {
@@ -87,8 +85,8 @@ try {
     
     unlink($tmpfile);
 
-    // Get all questions created by this user after the max_id
-    $newqs = $DB->get_records_sql("SELECT id FROM {question} WHERE id > ? AND createdby = ? ORDER BY id ASC", [$max_id_before, $USER->id]);
+    // Zaman tabanlı ve kullanıcı tabanlı sorgu ile race condition önlemi
+    $newqs = $DB->get_records_sql("SELECT id FROM {question} WHERE timecreated >= ? AND createdby = ? ORDER BY id ASC", [$time_before_import - 5, $USER->id]);
     
     $created_ids = [];
     if ($newqs) {

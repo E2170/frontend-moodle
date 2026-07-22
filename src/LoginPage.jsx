@@ -23,7 +23,8 @@ export default function LoginPage() {
     });
 
     try {
-      const response = await fetch(`/api/login/token.php`, {
+      const apiBase = import.meta.env.VITE_API_URL || "/api";
+      const response = await fetch(`${apiBase}/login/token.php`, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -58,13 +59,13 @@ export default function LoginPage() {
           try {
             // Gerçek web oturumu almak için arkaplanda web login yap
             try {
-              const loginPageRes = await fetch('/api/login/index.php');
+              const loginPageRes = await fetch(`${apiBase}/login/index.php`);
               const loginHtml = await loginPageRes.text();
               const tokenMatch = loginHtml.match(/name="logintoken" value="([^"]+)"/);
               if (tokenMatch) {
                 const logintoken = tokenMatch[1];
                 const params = new URLSearchParams({ username, password, logintoken });
-                await fetch('/api/login/index.php', {
+                await fetch(`${apiBase}/login/index.php`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                   body: params.toString()

@@ -9,7 +9,8 @@ const doMoodlePost = async (token, wsfunction, extraParams = {}) => {
     ...extraParams
   });
 
-  const response = await fetch("/api/webservice/rest/server.php", {
+  const endpoint = import.meta.env.VITE_REST_ENDPOINT || "/api/webservice/rest/server.php";
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded"
