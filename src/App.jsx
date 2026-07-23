@@ -1,9 +1,11 @@
 import React, { Suspense } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./AuthContext";
-import ProtectedRoute from "./ProtectedRoute";
-import Layout from "./Layout";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./AuthContext";
+import ErrorBoundary from "./ErrorBoundary";
 import AlertModal from "./AlertModal";
+import Layout from "./Layout";
+import ProtectedRoute from "./ProtectedRoute";
+import LoadingSpinner from "./components/LoadingSpinner";
 
 // Sayfaları dinamik (lazy) yükle - İlk yükleme (Initial Load) hızını artırır
 const LoginPage = React.lazy(() => import("./LoginPage"));
@@ -30,9 +32,11 @@ function App() {
       <Router>
         <AlertModal />
         <Suspense fallback={
-          <div className="flex flex-col h-screen w-full items-center justify-center bg-gray-50 text-blue-600">
-            <div className="w-12 h-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin mb-4" />
-            <div className="font-bold text-sm tracking-wide">Yükleniyor...</div>
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center flex-col">
+            <LoadingSpinner size="lg" color="blue" className="mb-4" />
+            <div className="text-gray-500 font-medium animate-pulse">
+              AKUZEM Yükleniyor...
+            </div>
           </div>
         }>
           <Routes>

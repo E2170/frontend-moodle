@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { moodlePost } from "./moodleApi";
 import akuzemLogo from "./assets/akuzem-lg.png";
 
 export default function Header() {
@@ -26,8 +27,6 @@ export default function Header() {
       if (!userInfo || !userInfo.userid) return;
       try {
         const tokenStr = localStorage.getItem("moodle_token");
-        // Dynamically import moodlePost just for the header since it might not be imported
-        const { moodlePost } = await import('./moodleApi.js');
         const res = await moodlePost(tokenStr, "core_message_get_conversations", { userid: userInfo.userid });
         if (res && Array.isArray(res.conversations)) {
           const unreadConvs = res.conversations.filter(c => c.unreadcount > 0);
@@ -55,7 +54,6 @@ export default function Header() {
     if (!userInfo || !userInfo.userid) return;
     try {
       const tokenStr = localStorage.getItem("moodle_token");
-      const { moodlePost } = await import('./moodleApi.js');
       await moodlePost(tokenStr, "core_message_mark_all_conversation_messages_as_read", {
         userid: userInfo.userid,
         conversationid: convId
