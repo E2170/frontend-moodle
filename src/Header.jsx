@@ -10,6 +10,8 @@ export default function Header() {
 
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [recentMessages, setRecentMessages] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const isActive = (path) => location.pathname.startsWith(path);
 
@@ -19,9 +21,55 @@ export default function Header() {
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    const fetchRecentMessages = async () => {
+      if (!userInfo || !userInfo.userid) return;
+      try {
+        const tokenStr = localStorage.getItem("moodle_token");
+        // Dynamically import moodlePost just for the header since it might not be imported
+        const { moodlePost } = await import('./moodleApi.js');
+        const res = await moodlePost(tokenStr, "core_message_get_conversations", { userid: userInfo.userid });
+        if (res && Array.isArray(res.conversations)) {
+          const unreadConvs = res.conversations.filter(c => c.unreadcount > 0);
+          setRecentMessages(unreadConvs.slice(0, 5)); // Show top 5 unread
+          const unread = unreadConvs.reduce((acc, curr) => acc + (curr.unreadcount || 0), 0);
+          setUnreadCount(unread);
+        }
+      } catch (e) {
+        console.error("Header msg error", e);
+      }
+    };
+    fetchRecentMessages();
+    // Poll every 30 seconds
+    const interval = setInterval(fetchRecentMessages, 30000);
+    return () => clearInterval(interval);
+  }, [userInfo]);
+
   const toggleDropdown = (dropdownName, e) => {
     e.stopPropagation();
     setActiveDropdown(prev => prev === dropdownName ? null : dropdownName);
+  };
+
+  const markAsRead = async (e, convId) => {
+    e.stopPropagation();
+    if (!userInfo || !userInfo.userid) return;
+    try {
+      const tokenStr = localStorage.getItem("moodle_token");
+      const { moodlePost } = await import('./moodleApi.js');
+      await moodlePost(tokenStr, "core_message_mark_all_conversation_messages_as_read", {
+        userid: userInfo.userid,
+        conversationid: convId
+      });
+      setRecentMessages(prev => {
+        const conv = prev.find(c => c.id === convId);
+        if (conv) {
+          setUnreadCount(count => Math.max(0, count - (conv.unreadcount || 1)));
+        }
+        return prev.filter(c => c.id !== convId);
+      });
+    } catch (err) {
+      console.error("Mark read error", err);
+    }
   };
 
   const navItems = userRole === "teacher" ? [
@@ -106,6 +154,9 @@ export default function Header() {
           <div className="relative h-full flex items-center">
             <button onClick={(e) => toggleDropdown('messages', e)} className="text-[#9ca3af] hover:text-white relative text-lg transition-colors p-1">
               <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+              {unreadCount > 0 && (
+                <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border border-[#19233e]"></span>
+              )}
             </button>
             {activeDropdown === 'messages' && (
               <div className="absolute top-[60px] right-0 bg-white text-[#495057] w-[280px] sm:w-[320px] rounded-[8px] shadow-[0_5px_20px_rgba(0,0,0,0.15)] z-[100] border border-gray-100 overflow-hidden cursor-default" onClick={(e) => e.stopPropagation()}>
@@ -116,9 +167,46 @@ export default function Header() {
                   <div onClick={() => { navigate('/announcements'); setActiveDropdown(null); }} className="flex-1 rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#6c757d] cursor-pointer hover:text-[#495057] hover:bg-gray-200 transition-colors">Duyurular</div>
                 </div>
                 {/* Content */}
-                <div className="p-8 flex flex-col items-center justify-center min-h-[220px] bg-white relative z-10 border-t border-gray-200">
-                  <svg className="w-16 h-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
-                  <span className="text-[14px] font-medium text-[#495057]">Yeni mesajınız bulunmamaktadır.</span>
+                <div className="flex flex-col min-h-[220px] max-h-[350px] overflow-y-auto bg-white relative z-10 border-t border-gray-200">
+                  {recentMessages.length === 0 ? (
+                    <div className="p-8 flex flex-col items-center justify-center h-[220px]">
+                      <svg className="w-16 h-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+                      <span className="text-[14px] font-medium text-[#495057]">Okunmamış yeni mesajınız yok.</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col">
+                      {recentMessages.map(conv => (
+                        <div 
+                          key={conv.id}
+                          onClick={() => { navigate('/messages', { state: { openConvId: conv.id } }); setActiveDropdown(null); }}
+                          className={`p-3 border-b border-gray-50 flex gap-3 cursor-pointer hover:bg-gray-50 transition-colors ${conv.unreadcount > 0 ? 'bg-blue-50/50' : ''}`}
+                        >
+                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-600 shrink-0">
+                            {conv.members?.find(m => m.id !== userInfo.userid)?.fullname?.slice(0,1) || "U"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-center mb-0.5">
+                              <span className="font-bold text-[13px] text-gray-800 truncate">
+                                {conv.members?.find(m => m.id !== userInfo.userid)?.fullname}
+                              </span>
+                              {conv.unreadcount > 0 && <span className="w-2 h-2 bg-blue-600 rounded-full"></span>}
+                            </div>
+                            <div className="text-[12px] text-gray-500 truncate">
+                              {conv.messages?.[0]?.text?.replace(/<[^>]*>/g, "")}
+                            </div>
+                            {conv.unreadcount > 0 && (
+                              <button 
+                                onClick={(e) => markAsRead(e, conv.id)}
+                                className="mt-1.5 text-[11px] font-medium text-blue-600 hover:text-blue-800 transition-colors bg-white/50 px-2 py-0.5 rounded border border-blue-100 shadow-sm"
+                              >
+                                Okundu olarak işaretle
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

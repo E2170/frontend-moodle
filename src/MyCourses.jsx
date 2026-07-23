@@ -27,8 +27,43 @@ export default function MyCourses() {
         // Kullanıcının kayıtlı olduğu dersleri al
         const coursesData = await moodlePost(token, "core_enrol_get_users_courses", { userid: userData.userid });
 
-        if (Array.isArray(coursesData)) {
-          setCourses(coursesData);
+        if (coursesData && Array.isArray(coursesData)) {
+          const enrichedCourses = await Promise.all(coursesData.map(async (course) => {
+            try {
+              const contentsRes = await moodlePost(token, "core_course_get_contents", {
+                courseid: course.id
+              });
+              if (Array.isArray(contentsRes)) {
+                let totalActivities = 0;
+                let completedActivities = 0;
+                contentsRes.forEach(sec => {
+                  if (sec.modules) {
+                    sec.modules.forEach(mod => {
+                      if (mod.completion > 0) {
+                        totalActivities++;
+                        if (mod.completiondata && (mod.completiondata.state == 1 || mod.completiondata.state == 2 || mod.completiondata.state == 3)) {
+                          completedActivities++;
+                        }
+                      }
+                    });
+                  }
+                });
+                if (totalActivities > 0) {
+                  course.calculatedProgress = Math.round((completedActivities / totalActivities) * 100);
+                } else {
+                  course.calculatedProgress = course.progress || 0;
+                }
+              } else {
+                course.calculatedProgress = course.progress || 0;
+              }
+            } catch (e) {
+              course.calculatedProgress = course.progress || 0;
+            }
+            return course;
+          }));
+          setCourses(enrichedCourses);
+        } else {
+          setCourses([]);
         }
       }
     } catch (error) {
@@ -129,9 +164,9 @@ export default function MyCourses() {
                   <div className="relative w-12 h-12 flex items-center justify-center">
                     <svg className="w-12 h-12 transform -rotate-90">
                       <circle cx="24" cy="24" r="20" stroke="#e9ecef" strokeWidth="4" fill="none" />
-                      <circle cx="24" cy="24" r="20" stroke="#40c057" strokeWidth="4" fill="none" strokeDasharray="125.6" strokeDashoffset={125.6 - (125.6 * course.progress) / 100} />
+                      <circle cx="24" cy="24" r="20" stroke="#40c057" strokeWidth="4" fill="none" strokeDasharray="125.6" strokeDashoffset={125.6 - (125.6 * (course.calculatedProgress !== undefined ? course.calculatedProgress : (course.progress || 0))) / 100} />
                     </svg>
-                    <span className="absolute text-[11px] font-bold text-[#495057]">% {course.progress}</span>
+                    <span className="absolute text-[11px] font-bold text-[#495057]">% {course.calculatedProgress !== undefined ? course.calculatedProgress : (course.progress || 0)}</span>
                   </div>
                 </div>
               </div>

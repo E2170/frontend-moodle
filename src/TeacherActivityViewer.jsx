@@ -584,7 +584,7 @@ function TeacherForumViewer({ mod, token }) {
   const loadDiscussions = async () => {
     setLoading(true);
     try {
-      const r = await moodlePost(token, "mod_forum_get_forum_discussions", { forumid: mod.instance, sortby: "timemodified", sortdirection: "DESC" });
+      const r = await moodlePost(token, "mod_forum_get_forum_discussions", { forumid: mod.instance });
       setDiscussions(r.discussions || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -611,7 +611,6 @@ function TeacherForumViewer({ mod, token }) {
         forumid: mod.instance,
         subject: newSubject,
         message: newMessage,
-        messageformat: 1,
       });
       if (res.exception) throw new Error(res.message);
       setPostMsg({ type: "success", text: "✅ Tartışma konusu açıldı!" });
@@ -627,10 +626,9 @@ function TeacherForumViewer({ mod, token }) {
     try {
       const dis = discussions.find(d => d.id === discussionId);
       await moodlePost(token, "mod_forum_add_discussion_post", {
-        postid: dis?.firstpostid || 0,
+        postid: dis?.id || 0,
         subject: "Re: " + (dis?.subject || ""),
         message: replyText,
-        messageformat: 1,
       });
       setReplyTo(null); setReplyText("");
       const r = await moodlePost(token, "mod_forum_get_discussion_posts", { discussionid: discussionId });
@@ -937,6 +935,140 @@ function TeacherBigBlueButtonViewer({ mod, token }) {
 }
 
 // ─────────────────────────────────────────────
+// CHOICE — Anket Sonuçları (Öğretmen)
+// ─────────────────────────────────────────────
+function TeacherChoiceViewer({ mod, token }) {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(null);
+  const [expanded, setExpanded] = useState(null); // hangi seçeneğin öğrenci listesi açık
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await moodlePost(token, "local_vueapi_get_choice_results", { choiceid: mod.instance });
+        setData(res);
+      } catch (e) { console.error(e); }
+      finally { setLoading(false); }
+    };
+    load();
+  }, [mod.instance]); // eslint-disable-line
+
+  if (loading) return <Spinner text="Anket sonuçları yükleniyor..." />;
+
+  const options  = data?.options || [];
+  const total    = data?.totalanswers || 0;
+
+  // Renk paleti — her seçenek farklı renk
+  const COLORS = [
+    { bar: "bg-blue-500",   light: "bg-blue-50",   border: "border-blue-200",   text: "text-blue-700"   },
+    { bar: "bg-emerald-500",light: "bg-emerald-50", border: "border-emerald-200",text: "text-emerald-700" },
+    { bar: "bg-violet-500", light: "bg-violet-50",  border: "border-violet-200", text: "text-violet-700"  },
+    { bar: "bg-amber-500",  light: "bg-amber-50",   border: "border-amber-200",  text: "text-amber-700"   },
+    { bar: "bg-rose-500",   light: "bg-rose-50",    border: "border-rose-200",   text: "text-rose-700"    },
+    { bar: "bg-cyan-500",   light: "bg-cyan-50",    border: "border-cyan-200",   text: "text-cyan-700"    },
+    { bar: "bg-orange-500", light: "bg-orange-50",  border: "border-orange-200", text: "text-orange-700"  },
+    { bar: "bg-pink-500",   light: "bg-pink-50",    border: "border-pink-200",   text: "text-pink-700"    },
+  ];
+
+  return (
+    <div className="space-y-5">
+      {/* Başlık */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <div className="flex items-center gap-3 mb-1">
+          <span className="text-2xl">✅</span>
+          <div>
+            <h2 className="text-base font-bold text-gray-800">{mod.name}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Seçim / Anket Aktivitesi</p>
+          </div>
+        </div>
+        {mod.description && (
+          <div className="mt-3 pt-3 border-t border-gray-100 text-sm text-gray-600 leading-relaxed"
+            dangerouslySetInnerHTML={{ __html: mod.description }} />
+        )}
+      </div>
+
+      {/* Özet Stat */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm text-center">
+          <div className="text-3xl font-black text-gray-800">{total}</div>
+          <div className="text-xs text-gray-400 mt-1">Toplam Katılımcı</div>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm text-center">
+          <div className="text-3xl font-black text-gray-800">{options.length}</div>
+          <div className="text-xs text-gray-400 mt-1">Seçenek Sayısı</div>
+        </div>
+      </div>
+
+      {/* Sonuç Grafik Kartı */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <h3 className="text-sm font-bold text-gray-700 mb-4">📊 Sonuçlar</h3>
+        {options.length === 0 ? (
+          <div className="text-center py-10 text-gray-400 text-sm">Seçenek bulunamadı.</div>
+        ) : (
+          <div className="space-y-4">
+            {options.map((opt, idx) => {
+              const clr = COLORS[idx % COLORS.length];
+              const pct = opt.percentageamount || 0;
+              const isOpen = expanded === opt.id;
+              return (
+                <div key={opt.id} className={`rounded-xl border ${clr.border} ${clr.light} overflow-hidden`}>
+                  {/* Seçenek Satırı */}
+                  <div className="px-4 pt-3 pb-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-sm font-semibold ${clr.text}`}>{opt.text}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-black ${clr.text}`}>%{pct.toFixed(1)}</span>
+                        <span className="text-xs text-gray-400">({opt.numberofuser} kişi)</span>
+                      </div>
+                    </div>
+                    {/* Progress bar */}
+                    <div className="h-2.5 bg-white/60 rounded-full overflow-hidden border border-white">
+                      <div
+                        className={`h-full ${clr.bar} rounded-full transition-all duration-700`}
+                        style={{ width: pct + "%" }}
+                      />
+                    </div>
+                  </div>
+                  {/* Öğrenci listesi toggle */}
+                  {opt.numberofuser > 0 && (
+                    <div>
+                      <button
+                        onClick={() => setExpanded(isOpen ? null : opt.id)}
+                        className={`w-full px-4 py-2 text-left text-xs font-semibold ${clr.text} hover:bg-white/40 transition-colors flex items-center gap-1`}
+                      >
+                        {isOpen ? "▲" : "▼"} {isOpen ? "Gizle" : `${opt.numberofuser} öğrenciyi göster`}
+                      </button>
+                      {isOpen && (
+                        <div className="px-4 pb-3 grid grid-cols-1 gap-1 border-t border-white/50">
+                          {opt.userresponses.map((u) => (
+                            <div key={u.userid} className="flex items-center gap-2 py-1">
+                              <div className={`w-7 h-7 rounded-full ${clr.bar} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
+                                {u.fullname.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="text-xs text-gray-700 font-medium">{u.fullname}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {total === 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-700 text-center">
+          ⏳ Henüz hiçbir öğrenci oy kullanmamış.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // GENERIC fallback — Moodle'a yönlendirme YOK
 // ─────────────────────────────────────────────
 function TeacherGenericViewer({ mod }) {
@@ -969,6 +1101,7 @@ export default function TeacherActivityViewer({ mod, token, courseId, onBack }) 
       case "forum":    return <TeacherForumViewer    mod={mod} token={token} />;
       case "page":     return <TeacherPageViewer     mod={mod} token={token} courseId={courseId} />;
       case "bigbluebuttonbn": return <TeacherBigBlueButtonViewer mod={mod} token={token} />;
+      case "choice":   return <TeacherChoiceViewer   mod={mod} token={token} />;
       default:         return <TeacherGenericViewer  mod={mod} />;
     }
   };

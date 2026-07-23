@@ -3,10 +3,6 @@ import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { showAlert } from "./AlertModal";
 import TeacherActivityViewer from "./TeacherActivityViewer";
 import { useAuth } from "./AuthContext";
-
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
 import { moodlePost } from "./moodleApi";
 // Removed local moodlePost
 
@@ -123,7 +119,9 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
     timelimit: "60",
     attempts: "1",
     timeopen: "",
-    timeclose: ""
+    timeclose: "",
+    // Choice fields
+    choiceoptions: ""
   });
   
   const [activeTab, setActiveTab] = useState("İÇERİK");
@@ -188,7 +186,7 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
         section: sectionNum,
         type: actType.moodleId,
         name: form.name,
-        description: form.intro || "",
+        description: (form.intro || "") + (actType.moodleId === "choice" ? "|||CHOICEOPTIONS|||" + (form.choiceoptions || "") : ""),
         // Tüm aktiviteler için varsayılan olarak (0) integer gönderilir:
         duedate: toUnix(form.duedate),
         timeopen: toUnix(form.timeopen || form.allowsubmissionsfromdate),
@@ -198,9 +196,11 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
         record: form.record === "1" ? 1 : 0
       };
 
-      if (actType.moodleId === "url") {
-        payload.externalurl = form.externalurl || "";
-      }
+
+      // NOT: choiceoptions, description içine "|||CHOICEOPTIONS|||" ile gömülüp
+      // PHP tarafında parse edilmektedir. Moodle'ın strict validate_parameters()
+      // fonksiyonu tanımsız key'leri reddettiğinden ayrı parametre gönderilmez.
+
 
       // API isteği
       const res = await moodlePost(token, "local_vueapi_add_activity", payload);
@@ -302,6 +302,16 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
                       <input type="url" name="externalurl" value={form.externalurl} onChange={handleChange}
                         className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 ring-blue-50 transition-all"
                         placeholder="https://..." />
+                    </div>
+                  )}
+
+                  {actType.moodleId === "choice" && (
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Anket Seçenekleri</label>
+                      <p className="text-[11px] text-gray-400 mb-2">Her satıra bir seçenek yazınız. Öğrenciler bu seçeneklerden birine oy verecektir.</p>
+                      <textarea name="choiceoptions" rows={5} value={form.choiceoptions} onChange={handleChange}
+                        className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 ring-blue-50 transition-all resize-none"
+                        placeholder="Örn:&#10;Seçenek 1&#10;Seçenek 2&#10;Seçenek 3" />
                     </div>
                   )}
                   
@@ -518,23 +528,26 @@ export default function TeacherCoursePage() {
           const datesObj = {};
           datesRes.forEach(d => { datesObj[d.cmid] = d.timeclose; });
           setActivityDates(datesObj);
-          
-          if (datesRes.length === 0) {
-            setCourseDetail(prev => ({ ...prev, fullname: prev.fullname + " (Tarihler: BOŞ)" }));
-          } else {
-            setCourseDetail(prev => ({ ...prev, fullname: prev.fullname + " (Tarihler: " + datesRes.length + " adet geldi!)" }));
-          }
-        } else {
-          setCourseDetail(prev => ({ ...prev, fullname: "NOT ARRAY: " + JSON.stringify(datesRes).substring(0, 50) }));
         }
       } catch (e) { 
-        setCourseDetail(prev => ({ ...prev, fullname: "CATCH ERROR: " + e.message }));
+        console.error("Dates fetch error", e);
       }
 
       if (Array.isArray(sectionsData)) {
         setSections(sectionsData);
         if (sectionsData.length > 0) {
-          setCourseDetail({ fullname: sectionsData[0].coursedisplayname || "DERS İÇERİĞİ" });
+          let cName = sectionsData[0].coursedisplayname || location.state?.course?.fullname;
+          
+          if (!cName) {
+            try {
+              const cRes = await moodlePost(token, "core_course_get_courses_by_field", { field: "id", value: courseId });
+              if (cRes && cRes.courses && cRes.courses.length > 0) {
+                cName = cRes.courses[0].fullname;
+              }
+            } catch(e) {}
+          }
+          
+          setCourseDetail(prev => ({ ...prev, fullname: cName || prev.fullname || "Ders Görüntüleniyor" }));
           
           if (location.state?.openCmid) {
              let targetMod = null;
@@ -562,9 +575,44 @@ export default function TeacherCoursePage() {
   }, [courseId, navigate, location.state]);
 
   useEffect(() => { 
-     
     fetchCourseData(); 
   }, [fetchCourseData]);
+
+  // Yeni Duyuru Modalı State'i
+  const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
+  const [announcementText, setAnnouncementText] = useState("");
+  const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
+
+  const handleAddAnnouncement = async (e) => {
+    e.preventDefault();
+    if (!announcementText.trim()) return;
+    setAnnouncementSubmitting(true);
+    try {
+      const payload = {
+        courseid: courseId,
+        section: 0,
+        type: "label",
+        name: "Duyuru",
+        description: `<div style="background:#fff3cd; color:#856404; padding:15px; border-radius:8px; border-left:5px solid #ffeeba; margin-bottom:15px;"><strong>Duyuru:</strong> ${announcementText}</div>`,
+        timeopen: 0,
+        timeclose: 0,
+        duedate: 0,
+        maxbytes: 0,
+        maxfiles: 0
+      };
+      const res = await moodlePost(token, "local_vueapi_add_activity", payload);
+      if (res && res.exception) throw new Error(res.message || "API hatası.");
+      
+      showAlert("Duyuru başarıyla eklendi ve tüm öğrencilere gösterilecek!");
+      setAnnouncementModalOpen(false);
+      setAnnouncementText("");
+      fetchCourseData();
+    } catch (err) {
+      showAlert("Duyuru eklenirken hata: " + err.message);
+    } finally {
+      setAnnouncementSubmitting(false);
+    }
+  };
 
   const activityTypes = [
     { id: "forum",         moodleId: "forum",          label: "Forum",        iconColor: "#4a90e2", emoji: "💬", desc: "Tartışma ortamı oluşturun." },
@@ -582,6 +630,8 @@ export default function TeacherCoursePage() {
   const defaultWeeks = Array.from({ length: 16 }, (_, i) => ({ id: `default-${i}`, name: `HAFTA ${i + 1}`, modules: [] }));
   const displaySections = sections.length > 0 ? sections : defaultWeeks;
   const activeSection = displaySections.find(s => s.id === activeSectionId) || displaySections[0];
+
+  const announcements = sections[0]?.modules?.filter(m => m.modname === 'label' && m.name === 'Duyuru') || [];
 
   const modMeta = {
     assign:         { icon: "📝", color: "bg-purple-50 text-purple-700 border-purple-100" },
@@ -639,11 +689,10 @@ export default function TeacherCoursePage() {
 
       {/* Üst Bar */}
       <div className="bg-white border-b border-gray-200 h-12 flex items-center px-6 shrink-0 z-30 shadow-sm">
-        <div className="flex items-center w-1/3 gap-2">
-          <span className="text-blue-600 font-black text-[10px] border border-blue-200 bg-blue-50 px-1 py-0.5 rounded tracking-tighter">C&gt;O</span>
-          <span className="font-bold text-xs text-gray-700 uppercase truncate max-w-[220px]">{courseDetail.fullname}</span>
+        <div className="flex items-center w-1/3 gap-3">
+          <span className="font-bold text-sm text-gray-800 uppercase truncate max-w-[280px]">{courseDetail.fullname}</span>
           <button onClick={() => setIsActivityPanelOpen(true)}
-            className="ml-3 w-8 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded-full text-white font-bold text-xl leading-none transition-all shadow-md shadow-blue-200"
+            className="w-8 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded-full text-white font-bold text-xl leading-none transition-all shadow-md shadow-blue-200"
             title="Aktivite Ekle">
             +
           </button>
@@ -789,17 +838,31 @@ export default function TeacherCoursePage() {
         <aside className="w-72 bg-white border-l border-gray-200 p-4 flex flex-col gap-4 shrink-0 overflow-y-auto">
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-col items-center text-center">
             <div className="w-14 h-14 bg-gray-100 border border-gray-200 rounded-full flex items-center justify-center text-gray-400 text-2xl mb-3">👤</div>
-            <div className="text-xs font-bold text-gray-800 uppercase tracking-wide mb-3">{userInfo.fullname}</div>
-            <button className="w-full bg-gray-800 hover:bg-black text-white text-xs font-bold py-2 rounded-lg transition-colors">
-              ✉ Mesaj Gönder
-            </button>
+            <div className="text-xs font-bold text-gray-800 uppercase tracking-wide mb-1">{userInfo.fullname}</div>
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{courseDetail.fullname}</div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <div className="flex justify-between items-center mb-3">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-col items-center">
+            <div className="flex justify-between items-center mb-3 w-full">
               <h3 className="text-xs font-bold text-gray-700">Duyurular</h3>
-              <span className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500 border">0</span>
+              <span className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500 border">{announcements.length}</span>
             </div>
-            <p className="text-[11px] text-gray-400 text-center py-2">Henüz duyuru bulunmamaktadır.</p>
+            <button 
+              onClick={() => setAnnouncementModalOpen(true)}
+              className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-bold py-2 rounded-lg transition-colors flex items-center justify-center gap-2 mb-3"
+            >
+              + Duyuru Ekle
+            </button>
+            {announcements.length === 0 ? (
+              <p className="text-[11px] text-gray-400 text-center py-2 w-full">Henüz duyuru bulunmamaktadır.</p>
+            ) : (
+              <div className="space-y-3 w-full text-left">
+                {announcements.slice(0, 5).map((ann, i) => (
+                  <div key={i} className="text-[11px] bg-yellow-50 text-yellow-800 p-2 rounded border border-yellow-100">
+                    <div dangerouslySetInnerHTML={{ __html: ann.description || ann.name }} />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </aside>
       </div>
@@ -948,6 +1011,45 @@ export default function TeacherCoursePage() {
           </div>
         </div>
       )}
+      {/* Duyuru Ekleme Modalı */}
+      {announcementModalOpen && (
+        <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden animate-zoom-in">
+            <div className="p-5 border-b border-gray-100 bg-blue-50/50 flex justify-between items-center">
+              <h3 className="font-bold text-blue-800 text-lg">Derse Duyuru Ekle</h3>
+              <button onClick={() => setAnnouncementModalOpen(false)} className="text-gray-400 hover:text-gray-700 text-xl font-bold">✕</button>
+            </div>
+            <form onSubmit={handleAddAnnouncement} className="p-6">
+              <label className="block text-sm font-bold text-gray-700 mb-2">Duyuru Metni</label>
+              <textarea 
+                required 
+                value={announcementText} 
+                onChange={e => setAnnouncementText(e.target.value)} 
+                rows="4"
+                placeholder="Öğrencileriniz için duyuru metnini buraya yazın..."
+                className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none mb-4"
+              />
+              <div className="flex justify-end gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setAnnouncementModalOpen(false)} 
+                  className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-100 transition-colors shadow-sm"
+                >
+                  Vazgeç
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={announcementSubmitting}
+                  className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2 disabled:opacity-50"
+                >
+                  {announcementSubmitting ? "Ekleniyor..." : "Yayınla"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

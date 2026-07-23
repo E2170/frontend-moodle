@@ -68,12 +68,13 @@ class external extends external_api {
                 'maxbytes' => new external_value(PARAM_INT, 'Maksimum Dosya Boyutu', VALUE_DEFAULT, 0),
                 'maxfiles' => new external_value(PARAM_INT, 'Maksimum Dosya Sayisi', VALUE_DEFAULT, 0),
                 'externalurl' => new external_value(PARAM_RAW, 'Harici URL (or. YouTube)', VALUE_DEFAULT, ''),
-                'record' => new external_value(PARAM_INT, 'Kayit (BBB)', VALUE_DEFAULT, 0)
+                'record' => new external_value(PARAM_INT, 'Kayit (BBB)', VALUE_DEFAULT, 0),
+                'choiceoptions' => new external_value(PARAM_RAW, 'Anket secenekleri (virgulle ayrilmis)', VALUE_DEFAULT, '')
             )
         );
     }
 
-    public static function add_activity($courseid, $section, $type, $name, $description, $duedate = 0, $timeopen = 0, $timeclose = 0, $maxbytes = 0, $maxfiles = 0, $externalurl = '', $record = 0) {
+    public static function add_activity($courseid, $section, $type, $name, $description, $duedate = 0, $timeopen = 0, $timeclose = 0, $maxbytes = 0, $maxfiles = 0, $externalurl = '', $record = 0, $choiceoptions = '') {
         global $DB, $CFG, $USER;
 
         $params = self::validate_parameters(self::add_activity_parameters(), array(
@@ -88,7 +89,8 @@ class external extends external_api {
             'maxbytes' => $maxbytes,
             'maxfiles' => $maxfiles,
             'externalurl' => $externalurl,
-            'record' => $record
+            'record' => $record,
+            'choiceoptions' => $choiceoptions
         ));
 
         $context = \context_course::instance($params['courseid']);
@@ -144,6 +146,11 @@ class external extends external_api {
         $instance = new \stdClass();
         $instance->course = $course->id;
         $instance->name = $params['name'];
+        
+        $desc_parts = explode('|||CHOICEOPTIONS|||', $params['description']);
+        $params['description'] = $desc_parts[0];
+        $choiceoptions_str = isset($desc_parts[1]) ? $desc_parts[1] : '';
+        
         $instance->intro = $params['description'];
         $instance->introformat = FORMAT_HTML;
         $instance->coursemodule = $cmid;
@@ -201,6 +208,23 @@ class external extends external_api {
             $instance->content = $params['description'] ?: 'Sayfa icerigi';
             $instance->contentformat = FORMAT_HTML;
             $instance->display = 0;
+        } elseif ($params['type'] === 'choice') {
+            $instance->option = array();
+            
+            // Seçenekler description içine "|||CHOICEOPTIONS|||" ile gömülüp parse edilir.
+            // $params['choiceoptions'] artık frontend tarafından gönderilmemektedir.
+            $source = !empty($choiceoptions_str) ? $choiceoptions_str : ($params['choiceoptions'] ?? '');
+            if (!empty($source)) {
+                $opts = explode("\n", $source);
+                foreach ($opts as $opt) {
+                    if (trim($opt) !== '') {
+                        $instance->option[] = trim($opt);
+                    }
+                }
+            }
+            if (empty($instance->option)) {
+                $instance->option = array('Evet', 'Hayır');
+            }
         } elseif ($params['type'] === 'forum') {
             $instance->type = 'general';
             $instance->assessed = 0;
@@ -245,6 +269,88 @@ class external extends external_api {
                 'activityid' => new external_value(PARAM_INT, 'Aktivite ID', VALUE_OPTIONAL)
             )
         );
+    }
+
+    // --- ANKET SONUÇLARI ---
+
+    public static function get_choice_results_parameters() {
+        return new external_function_parameters(
+            array(
+                'choiceid' => new external_value(PARAM_INT, 'Choice aktivite ID', VALUE_REQUIRED)
+            )
+        );
+    }
+
+    public static function get_choice_results($choiceid) {
+        global $DB;
+
+        $params = self::validate_parameters(self::get_choice_results_parameters(), array('choiceid' => $choiceid));
+
+        $choice = $DB->get_record('choice', array('id' => $params['choiceid']), '*', MUST_EXIST);
+        $context = \context_course::instance($choice->course);
+        self::validate_context($context);
+        require_capability('moodle/course:manageactivities', $context);
+
+        // Seçenekleri çek
+        $options = $DB->get_records('choice_options', array('choiceid' => $params['choiceid']), 'id');
+
+        // Toplam cevap sayısı
+        $totalanswers = $DB->count_records('choice_answers', array('choiceid' => $params['choiceid']));
+
+        $result = array();
+        foreach ($options as $opt) {
+            $answers = $DB->get_records_sql(
+                'SELECT ca.id, ca.userid, u.firstname, u.lastname, u.email
+                 FROM {choice_answers} ca
+                 JOIN {user} u ON u.id = ca.userid
+                 WHERE ca.choiceid = :choiceid AND ca.optionid = :optionid',
+                array('choiceid' => $params['choiceid'], 'optionid' => $opt->id)
+            );
+
+            $userresponses = array();
+            foreach ($answers as $a) {
+                $userresponses[] = array(
+                    'userid'   => (int)$a->userid,
+                    'fullname' => trim($a->firstname . ' ' . $a->lastname),
+                );
+            }
+
+            $count = count($userresponses);
+            $pct   = $totalanswers > 0 ? round($count / $totalanswers * 100, 1) : 0;
+
+            $result[] = array(
+                'id'               => (int)$opt->id,
+                'text'             => $opt->text,
+                'numberofuser'     => $count,
+                'percentageamount' => $pct,
+                'userresponses'    => $userresponses,
+            );
+        }
+
+        return array(
+            'totalanswers' => (int)$totalanswers,
+            'options'      => $result,
+        );
+    }
+
+    public static function get_choice_results_returns() {
+        return new \core_external\external_single_structure(array(
+            'totalanswers' => new external_value(PARAM_INT, 'Toplam cevap sayisi'),
+            'options'      => new \core_external\external_multiple_structure(
+                new \core_external\external_single_structure(array(
+                    'id'               => new external_value(PARAM_INT, 'Secenek ID'),
+                    'text'             => new external_value(PARAM_TEXT, 'Secenek metni'),
+                    'numberofuser'     => new external_value(PARAM_INT, 'Cevap sayisi'),
+                    'percentageamount' => new external_value(PARAM_FLOAT, 'Yuzde'),
+                    'userresponses'    => new \core_external\external_multiple_structure(
+                        new \core_external\external_single_structure(array(
+                            'userid'   => new external_value(PARAM_INT, 'Kullanici ID'),
+                            'fullname' => new external_value(PARAM_TEXT, 'Ad Soyad'),
+                        ))
+                    ),
+                ))
+            ),
+        ));
     }
 
     // --- AKTIVITE SILME FONKSIYONLARI (YENI) ---

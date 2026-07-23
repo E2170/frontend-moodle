@@ -12,9 +12,11 @@ export default function CourseCard({ course }) {
     return fullname.slice(0, 2).toUpperCase();
   };
 
-  const progress = course.progress !== undefined && course.progress !== null 
-    ? Math.round(course.progress) 
-    : 0;
+  const progress = course.calculatedProgress !== undefined && course.calculatedProgress !== null
+    ? Math.round(course.calculatedProgress)
+    : (course.progress !== undefined && course.progress !== null 
+        ? Math.round(course.progress) 
+        : 0);
 
   return (
     <div 

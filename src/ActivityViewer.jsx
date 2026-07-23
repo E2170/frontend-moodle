@@ -878,19 +878,28 @@ function FolderViewer({ mod, token }) {
 function ForumViewer({ mod, token }) {
   const [loading, setLoading] = useState(true);
   const [discussions, setDiscussions] = useState([]);
-    const [expanded, setExpanded] = useState(null);
+  const [expanded, setExpanded] = useState(null);
   const [posts, setPosts] = useState({});
   const [postsLoading, setPostsLoading] = useState(false);
 
+  const [newSubject, setNewSubject] = useState("");
+  const [newMessage, setNewMessage] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [postMsg, setPostMsg] = useState(null);
+  const [replyTo, setReplyTo] = useState(null);
+  const [replyText, setReplyText] = useState("");
+  const [replying, setReplying] = useState(false);
+
+  const loadDiscussions = async () => {
+    try {
+      const r = await moodlePost(token, "mod_forum_get_forum_discussions", { forumid: mod.instance });
+      setDiscussions(r.discussions || []);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+
   useEffect(() => {
-    moodlePost(token, "mod_forum_get_forum_discussions", {
-      forumid: mod.instance,
-      sortby: "timemodified",
-      sortdirection: "DESC",
-    })
-      .then(r => setDiscussions(r.discussions || []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    loadDiscussions();
   }, [mod.instance]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleDiscussion = async (d) => {
@@ -905,10 +914,46 @@ function ForumViewer({ mod, token }) {
     finally { setPostsLoading(false); }
   };
 
+  const handlePost = async () => {
+    if (!newSubject.trim() || !newMessage.trim()) { setPostMsg({ type: "error", text: "Konu ve mesaj gereklidir." }); return; }
+    setPosting(true);
+    setPostMsg(null);
+    try {
+      const res = await moodlePost(token, "mod_forum_add_discussion", {
+        forumid: mod.instance,
+        subject: newSubject,
+        message: newMessage,
+      });
+      if (res.exception) throw new Error(res.message);
+      setPostMsg({ type: "success", text: "✅ Tartışma konusu açıldı!" });
+      setNewSubject(""); setNewMessage("");
+      await loadDiscussions();
+    } catch (e) { setPostMsg({ type: "error", text: "Hata: " + e.message }); }
+    setPosting(false);
+  };
+
+  const handleReply = async (discussionId) => {
+    if (!replyText.trim()) return;
+    setReplying(true);
+    try {
+      const dis = discussions.find(d => d.id === discussionId);
+      await moodlePost(token, "mod_forum_add_discussion_post", {
+        postid: dis?.id || 0,
+        subject: "Re: " + (dis?.subject || ""),
+        message: replyText,
+      });
+      setReplyTo(null); setReplyText("");
+      const r = await moodlePost(token, "mod_forum_get_discussion_posts", { discussionid: discussionId });
+      setPosts(prev => ({ ...prev, [discussionId]: r.posts || [] }));
+    } catch (e) { console.error(e); }
+    setReplying(false);
+  };
+
   if (loading) return <LoadingSpinner />;
   return (
     <div className="space-y-4">
       <SectionHeader mod={mod} />
+      
       {discussions.length === 0
         ? <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center text-gray-400">Henüz tartışma konusu yok.</div>
         : <div className="space-y-3">
@@ -938,25 +983,45 @@ function ForumViewer({ mod, token }) {
                     {postsLoading && !posts[d.id] ? (
                       <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-gray-300 border-t-[#495057] rounded-full animate-spin" /></div>
                     ) : (
-                      (posts[d.id] || []).map(p => (
-                        <div key={p.id} className="p-4 border-b border-gray-50 last:border-0"
-                          style={{ paddingLeft: p.parent ? "3.5rem" : "1rem" }}>
-                          <div className="flex items-start gap-3">
-                            {p.author?.profileimageurl || p.userpictureurl
-                              ? <img src={p.author?.profileimageurl || p.userpictureurl} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
-                              : <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs shrink-0">👤</div>
-                            }
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-[12px] font-bold text-[#495057]">{p.author?.fullname || p.userfullname}</span>
-                                <span className="text-[11px] text-gray-400">{formatDate(p.timecreated)}</span>
+                      <>
+                        {(posts[d.id] || []).map(p => (
+                          <div key={p.id} className="p-4 border-b border-gray-50 last:border-0"
+                            style={{ paddingLeft: p.parent ? "3.5rem" : "1rem" }}>
+                            <div className="flex items-start gap-3">
+                              {p.author?.profileimageurl || p.userpictureurl
+                                ? <img src={p.author?.profileimageurl || p.userpictureurl} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                                : <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs shrink-0">👤</div>
+                              }
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-[12px] font-bold text-[#495057]">{p.author?.fullname || p.userfullname}</span>
+                                  <span className="text-[11px] text-gray-400">{formatDate(p.timecreated)}</span>
+                                </div>
+                                <div className="text-[13px] text-gray-600 leading-relaxed"
+                                  dangerouslySetInnerHTML={{ __html: p.message || "" }} />
                               </div>
-                              <div className="text-[13px] text-gray-600 leading-relaxed"
-                                dangerouslySetInnerHTML={{ __html: p.message || "" }} />
                             </div>
                           </div>
-                        </div>
-                      ))
+                        ))}
+                        {replyTo === d.id ? (
+                          <div className="p-4 border-t border-gray-100 bg-gray-50 space-y-2">
+                            <textarea rows={2} value={replyText} onChange={e => setReplyText(e.target.value)}
+                              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400 resize-none"
+                              placeholder="Yanıt yazın..." />
+                            <div className="flex gap-2">
+                              <button onClick={() => setReplyTo(null)} className="text-sm font-semibold text-gray-500 hover:text-gray-700">İptal</button>
+                              <button onClick={() => handleReply(d.id)} disabled={replying}
+                                className="bg-blue-600 text-white text-sm font-bold px-5 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                                {replying ? "Gönderiliyor..." : "Yanıtla"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-4 border-t border-gray-100 bg-gray-50">
+                            <button onClick={() => setReplyTo(d.id)} className="text-sm font-bold text-blue-600 hover:text-blue-800">↩ Yanıt Yaz</button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -981,21 +1046,51 @@ function ChoiceViewer({ mod, token }) {
 
   const loadData = async () => {
     setLoading(true);
+    // mod_choice_get_choice_options ve mod_choice_get_choice_results ayrı ayrı
+    // çekilmeli; results öğrencide yetki hatası verebileceğinden biri başarısız
+    // olsa dahi diğeri çalışmaya devam etsin.
+    let cr = null;
+    let rr = null;
     try {
-      const [cr, rr] = await Promise.all([
-        moodlePost(token, "mod_choice_get_choice_options", { choiceid: mod.instance }),
-        moodlePost(token, "mod_choice_get_choice_results", { choiceid: mod.instance }),
-      ]);
-      setChoice(cr);
-      setResults(rr);
-      // Önceki seçimi bul
-      if (rr?.options) {
-        rr.options.forEach(opt => {
-          if (opt.userresponded) setSelected(opt.id);
-        });
-      }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+      cr = await moodlePost(token, "mod_choice_get_choice_options", { choiceid: mod.instance });
+      console.debug("[ChoiceViewer] get_choice_options raw:", cr);
+    } catch (e) { console.error("[ChoiceViewer] get_choice_options hatası:", e); }
+
+    try {
+      rr = await moodlePost(token, "mod_choice_get_choice_results", { choiceid: mod.instance });
+      console.debug("[ChoiceViewer] get_choice_results raw:", rr);
+    } catch (e) { console.warn("[ChoiceViewer] get_choice_results erişilemedi (yetki?):", e); }
+
+    // API yanıtı bazen doğrudan dizi, bazen { options: [] } şeklinde olabilir
+    const normalizeOptions = (data) => {
+      if (!data) return null;
+      if (Array.isArray(data)) return { options: data };
+      if (data.options && Array.isArray(data.options)) return data;
+      // Bazen { 0: {...}, 1: {...} } gibi numerik key'li obje gelir
+      const keys = Object.keys(data);
+      if (keys.length && !isNaN(keys[0])) return { options: Object.values(data) };
+      return data;
+    };
+
+    const normalizedCr = normalizeOptions(cr);
+    const normalizedRr = normalizeOptions(rr);
+
+    setChoice(normalizedCr);
+    setResults(normalizedRr);
+
+    // Önceki seçimi bul: önce get_choice_options'daki checked alanına bak
+    // (get_choice_results erişilemeyen durumlarda fallback olarak kullanılır)
+    const crOpts = normalizedCr?.options || [];
+    const resOpts = normalizedRr?.options || [];
+
+    let prevSelected = null;
+    // get_choice_options: checked=true olan seçenek
+    crOpts.forEach(opt => { if (opt.checked) prevSelected = opt.id ?? null; });
+    // get_choice_results: userresponded olan seçenek (öncelikli)
+    resOpts.forEach(opt => { if (opt.userresponded) prevSelected = opt.id ?? null; });
+    if (prevSelected !== null) setSelected(prevSelected);
+
+    setLoading(false);
   };
 
   useEffect(() => { loadData(); }, [mod.instance]); // eslint-disable-line
@@ -1013,14 +1108,19 @@ function ChoiceViewer({ mod, token }) {
       setMsg({ type: "success", text: "✅ Yanıtınız kaydedildi!" });
       await loadData();
     } catch (e) {
-      setMsg({ type: "error", text: "Hata: " + e.message });
+      if (e.message && e.message.includes("allowupdate")) {
+        setMsg({ type: "error", text: "Anket sadece 1 kere cevaplanabilir." });
+      } else {
+        setMsg({ type: "error", text: "Hata: " + e.message });
+      }
     } finally { setSubmitting(false); }
   };
 
   if (loading) return <LoadingSpinner />;
 
   const options = choice?.options || results?.options || [];
-  const totalResponses = options.reduce((s, o) => s + (o.numberresponses || 0), 0);
+  // Moodle API: countanswers (get_choice_options) veya numberresponses (get_choice_results)
+  const totalResponses = options.reduce((s, o) => s + (o.countanswers ?? o.numberresponses ?? o.numberofuser ?? 0), 0);
 
   return (
     <div className="space-y-4">
@@ -1032,23 +1132,31 @@ function ChoiceViewer({ mod, token }) {
       )}
       <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-3">
         <h3 className="text-[14px] font-bold text-[#495057] mb-4">Seçeneğinizi İşaretleyin</h3>
-        {options.map((opt) => {
-          const pct = totalResponses > 0 ? Math.round((opt.numberresponses || 0) / totalResponses * 100) : 0;
+        {options.length === 0 ? (
+          <div className="text-center py-8 text-gray-400 text-[13px]">
+            <div className="text-3xl mb-2">📋</div>
+            Anket seçenekleri yüklenemedi. Lütfen sayfayı yenileyin veya yöneticinize başvurun.
+          </div>
+        ) : options.map((opt, idx) => {
+          const optText = opt.text || opt.name || opt.label || `Seçenek ${idx + 1}`;
+          const optId   = opt.id ?? idx;
+          const respCount = opt.countanswers ?? opt.numberresponses ?? opt.numberofuser ?? 0;
+          const pct = totalResponses > 0 ? Math.round(respCount / totalResponses * 100) : 0;
           return (
-            <div key={opt.id}
-              onClick={() => !opt.disabled && setSelected(opt.id)}
+            <div key={optId}
+              onClick={() => !opt.disabled && setSelected(optId)}
               className={`border-2 rounded-xl p-4 cursor-pointer transition-all ${
-                selected === opt.id ? "border-[#495057] bg-[#495057]/5" : "border-gray-200 hover:border-gray-300"
+                selected === optId ? "border-[#495057] bg-[#495057]/5" : "border-gray-200 hover:border-gray-300"
               } ${opt.disabled ? "opacity-50 cursor-not-allowed" : ""}`}>
               <div className="flex items-center gap-3">
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                  selected === opt.id ? "border-[#495057] bg-[#495057]" : "border-gray-300"
+                  selected === optId ? "border-[#495057] bg-[#495057]" : "border-gray-300"
                 }`}>
-                  {selected === opt.id && <div className="w-2 h-2 rounded-full bg-white" />}
+                  {selected === optId && <div className="w-2 h-2 rounded-full bg-white" />}
                 </div>
-                <span className="text-[14px] font-medium text-[#495057] flex-1">{opt.text}</span>
+                <span className="text-[14px] font-medium text-[#495057] flex-1">{optText}</span>
                 {totalResponses > 0 && (
-                  <span className="text-[12px] font-bold text-gray-400">{opt.numberresponses || 0} kişi ({pct}%)</span>
+                  <span className="text-[12px] font-bold text-gray-400">{respCount} kişi ({pct}%)</span>
                 )}
               </div>
               {totalResponses > 0 && (
@@ -1064,10 +1172,12 @@ function ChoiceViewer({ mod, token }) {
             msg.type === "success" ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-700"
           }`}>{msg.text}</div>
         )}
-        <button onClick={handleSubmit} disabled={submitting || selected === null}
-          className="w-full py-3 rounded-2xl text-[14px] font-semibold text-white bg-[#495057] hover:bg-[#343a40] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-          {submitting ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Kaydediliyor...</> : "✅ Yanıtı Gönder"}
-        </button>
+        {options.length > 0 && (
+          <button onClick={handleSubmit} disabled={submitting || selected === null}
+            className="w-full py-3 rounded-2xl text-[14px] font-semibold text-white bg-[#495057] hover:bg-[#343a40] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+            {submitting ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Kaydediliyor...</> : "✅ Yanıtı Gönder"}
+          </button>
+        )}
       </div>
     </div>
   );

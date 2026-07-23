@@ -18,6 +18,15 @@ $functions = [
         'ajax' => true,
         'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE]
     ],
+    'local_vueapi_get_choice_results' => [
+        'classname'   => 'local_vueapi\external',
+        'methodname'  => 'get_choice_results',
+        'classpath'   => 'local/vueapi/external.php',
+        'description' => 'Get choice activity results for teachers',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE]
+    ],
     'local_vueapi_delete_activity' => [
         'classname' => 'local_vueapi\external',
         'methodname' => 'delete_activity',
@@ -94,7 +103,11 @@ $services = [
             'local_vueapi_add_quiz_override',
             'local_vueapi_set_coursemodule_visible',
             'local_vueapi_get_quiz_slots',
-            'local_vueapi_delete_question'
+            'local_vueapi_delete_question',
+            'mod_forum_get_forum_discussions',
+            'mod_forum_get_discussion_posts',
+            'mod_forum_add_discussion',
+            'mod_forum_add_discussion_post'
         ],
         'requiredcapability' => '',
         'restrictedusers' => 0,

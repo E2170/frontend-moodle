@@ -22,6 +22,12 @@ export default function CourseDetail() {
   const [activityDates, setActivityDates] = useState({});
   const [selectedActivity, setSelectedActivity] = useState(null);
   
+  // Mesaj gönderme modalı durumları
+  const [msgModalOpen, setMsgModalOpen] = useState(false);
+  const [msgText, setMsgText] = useState("");
+  const [msgSending, setMsgSending] = useState(false);
+  const [msgStatus, setMsgStatus] = useState(null);
+
   // Açılır Menü ve Sekme Durumları
   
   
@@ -127,6 +133,7 @@ export default function CourseDetail() {
             setTeacher({
               fullname: detailedCourse.contacts[0].fullname,
               profileimageurl: detailedCourse.contacts[0].userpictureurl || "",
+              id: detailedCourse.contacts[0].id,
             });
           }
         }
@@ -150,6 +157,33 @@ export default function CourseDetail() {
 
 
   // const [currentUnixTime] = useState(() => Math.floor(Date.now() / 1000));
+
+  const handleSendMessage = async () => {
+    if (!msgText.trim() || !teacher?.id) return;
+    setMsgSending(true);
+    setMsgStatus(null);
+    try {
+      const token = localStorage.getItem("moodle_token");
+      const res = await moodlePost(token, "core_message_send_instant_messages", {
+        "messages[0][touserid]": teacher.id,
+        "messages[0][text]": msgText
+      });
+      if (res && res.length > 0 && res[0].msgid) {
+        setMsgStatus({ type: "success", text: "Mesajınız başarıyla gönderildi!" });
+        setMsgText("");
+        setTimeout(() => setMsgModalOpen(false), 2000);
+      } else if (res.exception) {
+        setMsgStatus({ type: "error", text: res.message });
+      } else {
+        setMsgStatus({ type: "error", text: "Mesaj gönderilemedi." });
+      }
+    } catch (e) {
+      setMsgStatus({ type: "error", text: "Hata: " + e.message });
+    } finally {
+      setMsgSending(false);
+    }
+  };
+  const announcements = sections[0]?.modules?.filter(m => m.modname === 'label' && m.name === 'Duyuru') || [];
 
   return (
     <div className="min-h-screen bg-[#eeede9] font-sans text-[#495057] antialiased flex flex-col">
@@ -401,10 +435,18 @@ export default function CourseDetail() {
                 ))}
 
               {activeTab === "duyurular" && (
-                <div className="text-center flex flex-col items-center">
-                  <h5 className="text-[16px] text-[#495057] font-medium">
-                    Henüz eklenmiş bir duyuru bulunmamaktadır.
-                  </h5>
+                <div className="flex flex-col gap-4">
+                  {announcements.length === 0 ? (
+                    <div className="text-center flex flex-col items-center">
+                      <h5 className="text-[16px] text-[#495057] font-medium">
+                        Henüz eklenmiş bir duyuru bulunmamaktadır.
+                      </h5>
+                    </div>
+                  ) : (
+                    announcements.map((ann, i) => (
+                      <div key={i} className="p-4 bg-white border border-gray-200 shadow-sm rounded-xl" dangerouslySetInnerHTML={{ __html: ann.description || ann.name }} />
+                    ))
+                  )}
                 </div>
               )}
 
@@ -437,7 +479,9 @@ export default function CourseDetail() {
                 <span className="text-[14px] font-bold text-[#495057] uppercase text-center w-full truncate mb-3">
                   {teacher?.fullname || "Öğretim Elemanı Atanmadı"}
                 </span>
-                <button className="bg-[#e9ecef] hover:bg-[#dde2e6] text-[#495057] text-[13px] font-semibold py-1.5 px-4 rounded w-full flex items-center justify-center gap-2 transition-colors">
+                <button 
+                  onClick={() => { setMsgModalOpen(true); setMsgStatus(null); setMsgText(""); }}
+                  className="bg-[#e9ecef] hover:bg-[#dde2e6] text-[#495057] text-[13px] font-semibold py-1.5 px-4 rounded w-full flex items-center justify-center gap-2 transition-colors">
                   <svg className="w-[16px] h-[16px]" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
                   Mesaj gönder
                 </button>
@@ -449,16 +493,79 @@ export default function CourseDetail() {
               <div className="flex items-center gap-2 mb-4 cursor-pointer">
                 <span className="text-[15px] font-bold text-[#495057]">Duyurular</span>
                 <span className="bg-gray-200 text-gray-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                  0
+                  {announcements.length}
                 </span>
               </div>
-              <div className="text-[13px] text-gray-500 font-medium">
-                Henüz eklenmiş bir duyuru bulunmamaktadır.
-              </div>
+              {announcements.length === 0 ? (
+                <div className="text-[13px] text-gray-500 font-medium">
+                  Henüz eklenmiş bir duyuru bulunmamaktadır.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {announcements.slice(0, 3).map((ann, i) => (
+                    <div key={i} className="text-[12px] bg-yellow-50 text-yellow-800 p-2 rounded border border-yellow-100">
+                      <div dangerouslySetInnerHTML={{ __html: ann.description || ann.name }} />
+                    </div>
+                  ))}
+                  {announcements.length > 3 && (
+                    <div className="text-blue-600 text-xs font-bold text-center cursor-pointer hover:underline" onClick={() => setActiveTab("duyurular")}>Tümünü Gör</div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Mesaj Gönderme Modalı */}
+      {msgModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h3 className="font-bold text-gray-800 text-lg">Mesaj Gönder</h3>
+              <button onClick={() => setMsgModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                ✕
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-5 p-3 bg-blue-50 rounded-xl">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold shrink-0 overflow-hidden">
+                  {teacher?.profileimageurl ? <img src={teacher.profileimageurl} alt="Hoca" /> : teacher?.fullname?.charAt(0)}
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-0.5">ALICI</div>
+                  <div className="text-sm font-bold text-gray-800">{teacher?.fullname}</div>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mesajınız</label>
+                  <textarea
+                    rows="5"
+                    value={msgText}
+                    onChange={(e) => setMsgText(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none transition-all"
+                    placeholder="Eğitmene iletmek istediğiniz mesajı buraya yazın..."
+                  ></textarea>
+                </div>
+                {msgStatus && (
+                  <div className={`p-3 rounded-lg text-sm font-medium ${msgStatus.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                    {msgStatus.text}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-100">
+              <button onClick={() => setMsgModalOpen(false)} className="px-5 py-2.5 rounded-xl font-semibold text-gray-600 hover:bg-gray-200 transition-colors">
+                İptal
+              </button>
+              <button onClick={handleSendMessage} disabled={msgSending || !msgText.trim()} className="px-5 py-2.5 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 transition-colors flex items-center gap-2">
+                {msgSending ? "Gönderiliyor..." : "Mesajı Gönder"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

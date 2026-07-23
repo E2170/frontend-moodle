@@ -57,9 +57,48 @@ export default function Dashboard() {
           const messagesData = await safeParse(messagesResponse);
 
           if (coursesData && Array.isArray(coursesData)) {
-            // Moodle >= 3.6 zaten core_enrol_get_users_courses içerisinde 'progress' dönmektedir.
-            // Ayrıca her ders için completion api'sine gidilip N+1 problemi yaratması engellendi.
-            setCourses(coursesData);
+            const enrichedCourses = await Promise.all(coursesData.map(async (course) => {
+              try {
+                // Moodle's native 'progress' is only updated during cron.
+                // To show instant progress, we dynamically calculate it from module states.
+                const contentsRes = await moodlePost(token, "core_course_get_contents", {
+                  courseid: course.id
+                });
+                
+                if (Array.isArray(contentsRes)) {
+                  let totalActivities = 0;
+                  let completedActivities = 0;
+                  
+                  contentsRes.forEach(sec => {
+                    if (sec.modules) {
+                      sec.modules.forEach(mod => {
+                        // Count modules that have completion enabled (completion > 0)
+                        if (mod.completion > 0) {
+                          totalActivities++;
+                          // state 1: completed, 2: completed passed, 3: completed failed
+                          if (mod.completiondata && (mod.completiondata.state == 1 || mod.completiondata.state == 2 || mod.completiondata.state == 3)) {
+                            completedActivities++;
+                          }
+                        }
+                      });
+                    }
+                  });
+                  
+                  if (totalActivities > 0) {
+                    course.calculatedProgress = Math.round((completedActivities / totalActivities) * 100);
+                  } else {
+                    course.calculatedProgress = course.progress || 0;
+                  }
+                } else {
+                  course.calculatedProgress = course.progress || 0;
+                }
+              } catch (e) {
+                course.calculatedProgress = course.progress || 0;
+              }
+              return course;
+            }));
+            
+            setCourses(enrichedCourses);
           }
 
           if (timelineData && Array.isArray(timelineData.events)) {
