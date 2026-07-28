@@ -20,11 +20,25 @@ export default function Messages() {
   const location = useLocation();
   const openConvId = location.state?.openConvId;
   const autoOpened = useRef(false);
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const fetchMessages = useCallback(async () => {
     if (!token || !userInfo || !userInfo.userid) return;
     try {
-      const res = await moodlePost(token, "core_message_get_conversations", { userid: userInfo.userid });
+      const res = await moodlePost(token, "core_message_get_conversations", { 
+        userid: userInfo.userid,
+        type: 1,
+        limitnum: 100,
+        limitfrom: 0
+      });
       if (res && Array.isArray(res.conversations)) {
         // Filter out conversations that don't have another member (e.g. self-chats that show as 'Kullanıcı')
         const validConvs = res.conversations.filter(c => c.members?.some(m => m.id !== userInfo.userid));
@@ -87,11 +101,12 @@ export default function Messages() {
         }
       }
     }
-  }, [conversations, openConvId]);
+  }, [conversations, openConvId, activeConv, loadConversation, userInfo.userid]);
 
   async function loadConversation(conv) {
-    localStorage.setItem('lastOpenConvId', conv.id);
     const peer = conv.members?.find(m => m.id !== userInfo.userid);
+    
+    localStorage.setItem('lastOpenConvId', conv.id);
     if (peer) {
       localStorage.setItem('lastOpenUserId', peer.id);
     }
@@ -116,16 +131,52 @@ export default function Messages() {
     
     setLoadingMessages(true);
     try {
+      let fetchedMessages = [];
+      
       const res = await moodlePost(token, "core_message_get_conversation_messages", {
         currentuserid: userInfo.userid,
         convid: conv.id,
         limitnum: 100,
         limitfrom: 0,
-        newestfirst: 1
+        newest: 1,
+        timefrom: 0
       });
-      if (res && res.messages) {
-        setMessages([...res.messages].reverse());
+      
+      if (res && res.messages && res.messages.length > 0) {
+        fetchedMessages = [...res.messages].reverse();
+      } else {
+        // Fallback for legacy messages (Moodle <3.6 or legacy instant messages)
+        try {
+          const peer = conv.members?.find(m => m.id !== userInfo.userid);
+          if (peer) {
+            const legacyRes = await moodlePost(token, "core_message_get_messages", {
+              useridto: userInfo.userid,
+              useridfrom: peer.id,
+              type: 'conversations',
+              read: 2,
+              newestfirst: 1,
+              limitnum: 50
+            });
+            const legacyResOut = await moodlePost(token, "core_message_get_messages", {
+              useridto: peer.id,
+              useridfrom: userInfo.userid,
+              type: 'conversations',
+              read: 2,
+              newestfirst: 1,
+              limitnum: 50
+            });
+            const allLegacy = [...(legacyRes?.messages || []), ...(legacyResOut?.messages || [])];
+            if (allLegacy.length > 0) {
+              allLegacy.sort((a, b) => a.timecreated - b.timecreated);
+              fetchedMessages = allLegacy;
+            }
+          }
+        } catch(fallbackErr) {
+          console.error("Fallback fetch error:", fallbackErr);
+        }
       }
+      
+      setMessages(fetchedMessages);
       
       // Mark as read
       if (conv.unreadcount > 0) {
@@ -148,20 +199,36 @@ export default function Messages() {
     const sentText = replyText;
     setReplying(true);
     try {
-      // Find the other member's id
-      const otherUserObj = activeConv.members.find(m => m.id !== userInfo.userid);
-      if (!otherUserObj) throw new Error("Other user not found");
-      const res = await moodlePost(token, "core_message_send_instant_messages", {
-        "messages[0][touserid]": otherUserObj.id,
+      // Moodle 3.6+ yeni mesaj gönderme API'sini kullan
+      const res = await moodlePost(token, "core_message_send_messages_to_conversation", {
+        conversationid: activeConv.id,
         "messages[0][text]": sentText,
         "messages[0][textformat]": 1
       });
-      if (res && res.length > 0 && res[0].msgid) {
+      
+      const otherUserObj = activeConv.members.find(m => m.id !== userInfo.userid);
+      
+      // Eğer conversation bulunamazsa eski metoda (legacy) fallback yap
+      let fallbackRes = null;
+      if (!res || res.errorcode) {
+        if (otherUserObj) {
+          fallbackRes = await moodlePost(token, "core_message_send_instant_messages", {
+            "messages[0][touserid]": otherUserObj.id,
+            "messages[0][text]": sentText,
+            "messages[0][textformat]": 1
+          });
+        }
+      }
+      
+      const finalRes = (res && !res.errorcode) ? res : fallbackRes;
+      
+      if (finalRes && finalRes.length > 0 && (finalRes[0].msgid || finalRes[0].id)) {
+        const generatedId = finalRes[0].msgid || finalRes[0].id;
         setReplyText("");
         
         // Append locally to instantly show the message
         const newMsg = {
-          id: res[0].msgid,
+          id: generatedId,
           useridfrom: userInfo.userid,
           text: sentText,
           timecreated: Math.floor(Date.now() / 1000)
@@ -175,7 +242,7 @@ export default function Messages() {
           convid: activeConv.id,
           limitnum: 100,
           limitfrom: 0,
-          newestfirst: 1
+          newest: 1
         }).then(syncRes => {
           if (syncRes && syncRes.messages) {
             setMessages([...syncRes.messages].reverse());
@@ -192,7 +259,7 @@ export default function Messages() {
         }).then(convRes => {
           if (convRes && convRes.conversations) {
             setConversations(convRes.conversations);
-            const updatedConv = convRes.conversations.find(c => c.members?.some(m => m.id === otherUserObj.id));
+            const updatedConv = convRes.conversations.find(c => c.members?.some(m => m.id === otherUserObj?.id));
             if (updatedConv) {
               setActiveConv(updatedConv);
               localStorage.setItem('lastOpenConvId', updatedConv.id);
@@ -356,6 +423,7 @@ export default function Messages() {
                       );
                     })
                   )}
+                  <div ref={messagesEndRef} />
                 </div>
                 
                 {/* Input Area */}

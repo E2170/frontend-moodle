@@ -13,6 +13,8 @@ export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [recentMessages, setRecentMessages] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   const isActive = (path) => location.pathname.startsWith(path);
 
@@ -27,12 +29,23 @@ export default function Header() {
       if (!userInfo || !userInfo.userid) return;
       try {
         const tokenStr = localStorage.getItem("moodle_token");
-        const res = await moodlePost(tokenStr, "core_message_get_conversations", { userid: userInfo.userid });
+        const [res, notifRes] = await Promise.all([
+           moodlePost(tokenStr, "core_message_get_conversations", { userid: userInfo.userid }),
+           moodlePost(tokenStr, "message_popup_get_popup_notifications", { useridto: userInfo.userid, limit: 10, offset: 0 })
+        ]);
+        
         if (res && Array.isArray(res.conversations)) {
           const unreadConvs = res.conversations.filter(c => c.unreadcount > 0);
           setRecentMessages(unreadConvs.slice(0, 5)); // Show top 5 unread
           const unread = unreadConvs.reduce((acc, curr) => acc + (curr.unreadcount || 0), 0);
           setUnreadCount(unread);
+        }
+        
+        if (notifRes && Array.isArray(notifRes.notifications)) {
+          // Sadece okunmamış bildirimleri göster (kullanıcı "tıkladığımda kaldırılsın" demişti)
+          const unreadNotifs = notifRes.notifications.filter(n => !n.read);
+          setNotifications(unreadNotifs);
+          setUnreadNotifCount(notifRes.unreadcount || 0);
         }
       } catch (e) {
         console.error("Header msg error", e);
@@ -67,6 +80,58 @@ export default function Header() {
       });
     } catch (err) {
       console.error("Mark read error", err);
+    }
+  };
+
+  const markNotificationsAsRead = async (e) => {
+    e.stopPropagation();
+    if (!userInfo || !userInfo.userid) return;
+    try {
+      const tokenStr = localStorage.getItem("moodle_token");
+      await moodlePost(tokenStr, "core_message_mark_all_notifications_as_read", {
+        useridto: userInfo.userid,
+        useridfrom: 0
+      });
+      setNotifications([]);
+      setUnreadNotifCount(0);
+    } catch (err) {
+      console.error("Mark notif read error", err);
+    }
+  };
+
+  const handleNotificationClick = async (notif) => {
+    setActiveDropdown(null);
+    if (!userInfo || !userInfo.userid) return;
+    
+    // Optimistically remove the notification
+    setNotifications(prev => prev.filter(n => n.id !== notif.id));
+    if (!notif.read) {
+        setUnreadNotifCount(count => Math.max(0, count - 1));
+    }
+    
+    try {
+      const tokenStr = localStorage.getItem("moodle_token");
+      await moodlePost(tokenStr, "core_message_mark_notification_read", {
+        notificationid: notif.id,
+        useridto: userInfo.userid
+      });
+    } catch (err) {
+      console.error("Mark single notif read error", err);
+    }
+
+    // Navigate to context url
+    if (notif.customdata) {
+        try {
+            const cdata = typeof notif.customdata === "string" ? JSON.parse(notif.customdata) : notif.customdata;
+            if (cdata.courseid) {
+                navigate(`/course/${cdata.courseid}`);
+                return;
+            }
+        } catch (e) { /* ignore parse error */ }
+    }
+    
+    if (notif.contexturl) {
+        window.open(notif.contexturl, "_blank");
     }
   };
 
@@ -214,6 +279,9 @@ export default function Header() {
           <div className="relative h-full flex items-center">
             <button onClick={(e) => toggleDropdown('notifications', e)} className="text-[#9ca3af] hover:text-white transition-colors text-lg relative p-1">
               <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+              {unreadNotifCount > 0 && (
+                <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border border-[#19233e]"></span>
+              )}
             </button>
             {activeDropdown === 'notifications' && (
               <div className="absolute top-[60px] right-0 bg-white text-[#495057] w-[280px] sm:w-[320px] rounded-[8px] shadow-[0_5px_20px_rgba(0,0,0,0.15)] z-[100] border border-gray-100 overflow-hidden cursor-default" onClick={(e) => e.stopPropagation()}>
@@ -224,14 +292,37 @@ export default function Header() {
                   <div className="flex-1 bg-white rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#006cb5] shadow-sm cursor-default">Bildirimler</div>
                 </div>
                 {/* Content */}
-                <div className="p-8 flex flex-col items-center justify-center min-h-[220px] bg-white relative z-10 border-t border-gray-200">
-                  <svg className="w-16 h-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                  <span className="text-[14px] font-medium text-[#495057]">Yeni Bildirim Bulunamadı</span>
+                <div className="flex flex-col min-h-[220px] max-h-[350px] overflow-y-auto bg-white relative z-10 border-t border-gray-200">
+                  {notifications.length === 0 ? (
+                    <div className="p-8 flex flex-col items-center justify-center h-[220px]">
+                      <svg className="w-16 h-16 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                      <span className="text-[14px] font-medium text-[#495057]">Yeni Bildirim Bulunamadı</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col">
+                      {notifications.map(notif => (
+                        <div 
+                          key={notif.id} 
+                          onClick={() => handleNotificationClick(notif)}
+                          className={`p-3 border-b border-gray-50 flex gap-3 cursor-pointer hover:bg-gray-50 transition-colors ${!notif.read ? 'bg-blue-50/50' : ''}`}
+                        >
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                            {notif.iconurl ? <img src={notif.iconurl} alt="" className="w-5 h-5 opacity-70" /> : <span className="text-blue-600 font-bold">!</span>}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-[13px] text-gray-800 mb-1">{notif.subject}</div>
+                            <div className="text-[12px] text-gray-600 mb-1 leading-relaxed line-clamp-2" dangerouslySetInnerHTML={{ __html: notif.smallmessage || notif.fullmessagehtml || notif.text }} />
+                            <div className="text-[11px] text-gray-400 font-medium">{notif.timecreatedpretty}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {/* Footer */}
                 <div className="p-3 flex gap-2 bg-white relative z-10 border-t border-gray-100">
-                  <button onClick={() => setActiveDropdown(null)} className="flex-1 py-2.5 bg-[#f8f9fa] hover:bg-[#e2e6ea] text-[#adb5bd] text-[13px] font-semibold rounded-[6px] transition-colors">Okundu Olarak İşaretle</button>
-                  <button onClick={() => { navigate('/dashboard'); setActiveDropdown(null); }} className="flex-1 py-2.5 bg-[#e9ecef] hover:bg-[#dde2e6] text-[#003d66] text-[13px] font-semibold rounded-[6px] transition-colors">Tüm Bildirimleri Görüntüle</button>
+                  <button onClick={markNotificationsAsRead} className="flex-1 py-2.5 bg-[#f8f9fa] hover:bg-[#e2e6ea] text-[#adb5bd] text-[13px] font-semibold rounded-[6px] transition-colors">Tümünü Okundu İşaretle</button>
+                  <button onClick={() => { navigate('/dashboard'); setActiveDropdown(null); }} className="flex-1 py-2.5 bg-[#e9ecef] hover:bg-[#dde2e6] text-[#003d66] text-[13px] font-semibold rounded-[6px] transition-colors">Kapat</button>
                 </div>
               </div>
             )}

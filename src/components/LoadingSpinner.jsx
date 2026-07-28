@@ -1,5 +1,3 @@
-import React from "react";
-
 export default function LoadingSpinner({ size = "md", color = "blue", className = "" }) {
   const sizeClasses = {
     sm: "w-4 h-4 border-2",

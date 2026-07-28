@@ -27,13 +27,13 @@ class external extends external_api {
             'grademethod' => 1,
             'decimalpoints' => 2,
             'questiondecimalpoints' => -1,
-            'reviewattempt' => 69904,
-            'reviewcorrectness' => 69904,
-            'reviewmarks' => 69904,
-            'reviewspecificfeedback' => 69904,
-            'reviewgeneralfeedback' => 69904,
-            'reviewrightanswer' => 69904,
-            'reviewoverallfeedback' => 69904,
+            'reviewattempt' => 0,
+            'reviewcorrectness' => 0,
+            'reviewmarks' => 0,
+            'reviewspecificfeedback' => 0,
+            'reviewgeneralfeedback' => 0,
+            'reviewrightanswer' => 0,
+            'reviewoverallfeedback' => 0,
             'questionsperpage' => 1,
             'navmethod' => 'free',
             'shuffleanswers' => 1,
@@ -188,6 +188,23 @@ class external extends external_api {
             $defaults = self::get_default_quiz_instance_fields();
             $defaults['timeopen'] = $params['timeopen'];
             $defaults['timeclose'] = $params['timeclose'];
+            
+            // Ayarları description içinden çıkar (Örn: <!-- SETTINGS:timelimit=3600;attempts=1 -->)
+            if (preg_match('/<!-- SETTINGS:(.*?) -->/', $instance->intro, $matches)) {
+                $settings_str = $matches[1];
+                $settings_pairs = explode(';', $settings_str);
+                foreach ($settings_pairs as $pair) {
+                    $kv = explode('=', $pair);
+                    if (count($kv) == 2) {
+                        $k = trim($kv[0]);
+                        $v = trim($kv[1]);
+                        if ($k === 'timelimit') $defaults['timelimit'] = (int)$v;
+                        if ($k === 'attempts') $defaults['attempts'] = (int)$v;
+                    }
+                }
+                // Ayar stringini intro'dan temizle
+                $instance->intro = preg_replace('/<!-- SETTINGS:.*? -->/', '', $instance->intro);
+            }
             
             foreach ($defaults as $key => $value) {
                 if (!isset($instance->$key)) {
@@ -863,6 +880,71 @@ class external extends external_api {
     }
 
     public static function delete_question_returns() {
+        return new external_single_structure(
+            array(
+                'status' => new external_value(PARAM_BOOL, 'Status of the operation'),
+                'message' => new external_value(PARAM_TEXT, 'Response message')
+            )
+        );
+    }
+
+    public static function publish_quiz_parameters() {
+        return new external_function_parameters(
+            array(
+                'quizid' => new external_value(PARAM_INT, 'Quiz ID')
+            )
+        );
+    }
+
+    public static function publish_quiz($quizid) {
+        global $DB, $USER, $CFG;
+        require_once($CFG->libdir . '/gradelib.php');
+        
+        $params = self::validate_parameters(self::publish_quiz_parameters(), array('quizid' => $quizid));
+        $quiz = $DB->get_record('quiz', array('id' => $params['quizid']));
+        if (!$quiz) return array('status' => false, 'message' => 'Sınav bulunamadı.');
+
+        $quiz->reviewattempt = 69904;
+        $quiz->reviewcorrectness = 69904;
+        $quiz->reviewmarks = 69904;
+        $quiz->reviewspecificfeedback = 69904;
+        $quiz->reviewgeneralfeedback = 69904;
+        $quiz->reviewrightanswer = 69904;
+        $quiz->reviewoverallfeedback = 69904;
+        $DB->update_record('quiz', $quiz);
+        
+        // Unhide grade in gradebook
+        require_once($CFG->libdir . '/grade/grade_item.php');
+        $grade_item = \grade_item::fetch(array('itemtype'=>'mod', 'itemmodule'=>'quiz', 'iteminstance'=>$quiz->id, 'courseid'=>$quiz->course));
+        if ($grade_item) {
+            $grade_item->set_hidden(0);
+            $grade_item->update();
+        }
+
+        // Send notifications
+        $context = \context_course::instance($quiz->course);
+        $enrolled = get_enrolled_users($context);
+        foreach ($enrolled as $u) {
+            if ($u->id == $USER->id) continue;
+            $message = new \core\message\message();
+            $message->component = 'moodle';
+            $message->name = 'instantmessage';
+            $message->userfrom = $USER;
+            $message->userto = $u;
+            $message->subject = 'Sınav Sonuçları Açıklandı';
+            $message->fullmessage = "{$quiz->name} adlı sınavın sonuçları açıklanmıştır. Lütfen sisteme girip notunuzu kontrol edin.";
+            $message->fullmessageformat = FORMAT_MARKDOWN;
+            $message->fullmessagehtml = "<p><b>{$quiz->name}</b> adlı sınavın sonuçları açıklanmıştır. Lütfen sisteme girip notunuzu kontrol edin.</p>";
+            $message->smallmessage = "Sınav Sonuçları Açıklandı: {$quiz->name}";
+            $message->notification = 1;
+            $message->customdata = json_encode(['courseid' => $quiz->course]);
+            message_send($message);
+        }
+
+        return array('status' => true, 'message' => 'Sınav sonuçları başarıyla yayınlandı ve öğrencilere bildirim gönderildi.');
+    }
+
+    public static function publish_quiz_returns() {
         return new external_single_structure(
             array(
                 'status' => new external_value(PARAM_BOOL, 'Status of the operation'),

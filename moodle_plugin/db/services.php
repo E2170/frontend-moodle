@@ -89,6 +89,15 @@ $functions = [
         'type' => 'write',
         'ajax' => true,
         'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE]
+    ],
+    'local_vueapi_publish_quiz' => [
+        'classname' => 'local_vueapi\external',
+        'methodname' => 'publish_quiz',
+        'classpath' => 'local/vueapi/external.php',
+        'description' => 'Publish quiz results',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => [MOODLE_OFFICIAL_MOBILE_SERVICE]
     ]
 ];
 
@@ -104,6 +113,7 @@ $services = [
             'local_vueapi_set_coursemodule_visible',
             'local_vueapi_get_quiz_slots',
             'local_vueapi_delete_question',
+            'local_vueapi_publish_quiz',
             'mod_forum_get_forum_discussions',
             'mod_forum_get_discussion_posts',
             'mod_forum_add_discussion',

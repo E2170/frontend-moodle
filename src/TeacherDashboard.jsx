@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { moodlePost } from "./moodleApi";
+import { moodlePost, fetchUserAnnouncements } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 
 export default function TeacherDashboard() {
@@ -10,6 +10,7 @@ export default function TeacherDashboard() {
   const [timelineEvents, setTimelineEvents] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [conversations, setConversations] = useState([]);
+  const [totalCounts, setTotalCounts] = useState({ virtuals: 0, forums: 0 });
   
   const fetchDashboardData = useCallback(async () => {
     const token = localStorage.getItem("moodle_token");
@@ -26,12 +27,12 @@ export default function TeacherDashboard() {
         const [
           coursesResponse,
           timelineResponse,
-          announcementsResponse,
+          announcementsData,
           messagesResponse
         ] = await Promise.all([
           moodlePost(token, "core_enrol_get_users_courses", { userid: userData.userid }).catch(e => { console.error("courses error", e); return null; }),
           moodlePost(token, "core_calendar_get_action_events_by_timesort").catch(e => { console.error("timeline error", e); return null; }),
-          moodlePost(token, "mod_forum_get_forum_discussions", { forumid: "2" }).catch(e => { console.error("forum error", e); return null; }),
+          fetchUserAnnouncements(token, userData.userid).catch(e => { console.error("announcements error", e); return []; }),
           moodlePost(token, "core_message_get_conversations", { userid: userData.userid }).catch(e => { console.error("messages error", e); return null; })
         ]);
 
@@ -41,17 +42,39 @@ export default function TeacherDashboard() {
 
         const coursesData = await safeParse(coursesResponse);
         const timelineData = await safeParse(timelineResponse);
-        const announcementsData = await safeParse(announcementsResponse);
         const messagesData = await safeParse(messagesResponse);
 
-          if (coursesData && Array.isArray(coursesData)) {
-            setCourses(coursesData);
-          }
+        if (coursesData && Array.isArray(coursesData)) {
+          setCourses(coursesData);
+          
+          // Hesapla: Sanal Sınıf ve Forumlar
+          let virtuals = 0;
+          let forumsCount = 0;
+          
+          await Promise.all(coursesData.map(async (course) => {
+            try {
+              const contentsRes = await moodlePost(token, "core_course_get_contents", { courseid: course.id });
+              if (Array.isArray(contentsRes)) {
+                contentsRes.forEach(sec => {
+                  if (sec.modules) {
+                    sec.modules.forEach(mod => {
+                      if (["bigbluebuttonbn", "zoom", "perculus", "adobeconnect"].includes(mod.modname)) virtuals++;
+                      if (mod.modname === "forum") forumsCount++;
+                    });
+                  }
+                });
+              }
+            } catch (e) {
+              // ignore
+            }
+          }));
+          setTotalCounts({ virtuals, forums: forumsCount });
+        }
         if (timelineData && Array.isArray(timelineData.events)) {
           setTimelineEvents(timelineData.events);
         }
-        if (announcementsData && Array.isArray(announcementsData.discussions)) {
-          setAnnouncements(announcementsData.discussions);
+        if (announcementsData && Array.isArray(announcementsData)) {
+          setAnnouncements(announcementsData);
         }
         if (messagesData && Array.isArray(messagesData.conversations)) {
           setConversations(messagesData.conversations);
@@ -248,7 +271,7 @@ export default function TeacherDashboard() {
                 <div className="flex justify-between items-center px-4 py-3 border-b border-[#e9ecef]">
                   <span className="text-[14px] font-medium text-[#212529]">
                     Forumlar
-                    <span className="bg-[#f8f9fa] border border-[#f8f9fa] text-[#212529] px-2 py-0.5 rounded-full text-[12px] font-semibold ml-2">0</span>
+                    <span className="bg-[#f8f9fa] border border-[#f8f9fa] text-[#212529] px-2 py-0.5 rounded-full text-[12px] font-semibold ml-2">{totalCounts.forums}</span>
                   </span>
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-[#212529] cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
@@ -267,7 +290,7 @@ export default function TeacherDashboard() {
                 <div className="flex justify-between items-center px-4 py-3 border-b border-[#e9ecef]">
                   <span className="text-[14px] font-medium text-[#212529]">
                     Sanal Sınıf
-                    <span className="bg-[#f8f9fa] border border-[#f8f9fa] text-[#212529] px-2 py-0.5 rounded-full text-[12px] font-semibold ml-2">0</span>
+                    <span className="bg-[#f8f9fa] border border-[#f8f9fa] text-[#212529] px-2 py-0.5 rounded-full text-[12px] font-semibold ml-2">{totalCounts.virtuals}</span>
                   </span>
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-[#212529] cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>

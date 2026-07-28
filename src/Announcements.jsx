@@ -1,25 +1,25 @@
 import { useEffect, useState, useCallback } from "react";
-import { moodlePost } from "./moodleApi";
+import { moodlePost, fetchUserAnnouncements } from "./moodleApi";
 import { useAuth } from "./AuthContext";
 
 export default function Announcements() {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { token } = useAuth();
+  const { token, userInfo } = useAuth();
 
   const fetchAnnouncements = useCallback(async () => {
-    if (!token) return;
+    if (!token || !userInfo || !userInfo.userid) return;
     try {
-      const res = await moodlePost(token, "mod_forum_get_forum_discussions", { forumid: "2" });
-      if (res && Array.isArray(res.discussions)) {
-        setAnnouncements(res.discussions);
+      const res = await fetchUserAnnouncements(token, userInfo.userid);
+      if (res && Array.isArray(res)) {
+        setAnnouncements(res);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, userInfo]);
 
   useEffect(() => {
     fetchAnnouncements();

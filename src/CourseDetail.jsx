@@ -20,6 +20,7 @@ export default function CourseDetail() {
   const [teacher, setTeacher] = useState(null);
   const [activeTab, setActiveTab] = useState("ders-icerigi");
   const [activityDates, setActivityDates] = useState({});
+  const [activityGrades, setActivityGrades] = useState({});
   const [selectedActivity, setSelectedActivity] = useState(null);
   
   // Mesaj gönderme modalı durumları
@@ -77,6 +78,17 @@ export default function CourseDetail() {
             setActivityDates(datesObj);
           }
         } catch (e) { console.error("Dates fetch error", e); }
+
+        try {
+          const gradesRes = await moodlePost(token, "gradereport_user_get_grade_items", { courseid: courseId, userid: userData.userid });
+          if (gradesRes?.usergrades?.[0]?.gradeitems) {
+             const gradesObj = {};
+             gradesRes.usergrades[0].gradeitems.forEach(g => {
+                 if (g.cmid) gradesObj[g.cmid] = g.gradeformatted;
+             });
+             setActivityGrades(gradesObj);
+          }
+        } catch (e) { console.error("Grades fetch error", e); }
 
         if (Array.isArray(coursesData)) {
           setCourses(coursesData);
@@ -408,16 +420,24 @@ export default function CourseDetail() {
                           ) : (
                             <span className="text-[11px] text-red-500 font-bold shrink-0">
                               {(() => {
+                                let timeText = "Zamanı Gelmedi";
                                 if (mod.dates && Array.isArray(mod.dates)) {
                                   const now = Date.now() / 1000;
                                   const closeDate = mod.dates.find(d => d.timestamp && (d.id?.includes('close') || d.label?.toLowerCase().includes('kapan')));
-                                  if (closeDate && closeDate.timestamp < now) return "Süresi Geçti";
+                                  if (closeDate && closeDate.timestamp < now) timeText = "Süresi Geçti";
                                 }
                                 if (mod.availabilityinfo) {
                                   const info = mod.availabilityinfo.toLowerCase();
-                                  if (info.includes("kadar") || info.includes("until") || info.includes("sona erdi")) return "Süresi Geçti";
+                                  if (info.includes("kadar") || info.includes("until") || info.includes("sona erdi")) timeText = "Süresi Geçti";
                                 }
-                                return "Zamanı Gelmedi";
+                                
+                                if (timeText === "Süresi Geçti") {
+                                  const grade = activityGrades[mod.id];
+                                  if (grade !== undefined && grade !== null && grade !== "-" && grade !== "") {
+                                    return `Puan: ${grade} | Süresi Geçti`;
+                                  }
+                                }
+                                return timeText;
                               })()}
                             </span>
                           )}

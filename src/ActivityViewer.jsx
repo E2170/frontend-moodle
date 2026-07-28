@@ -326,12 +326,13 @@ function AssignViewer({ mod, token }) {
 // ─────────────────────────────────────────────
 function QuizViewer({ mod, token, userId, courseId }) {
   const [loading, setLoading] = useState(true);
-  const [quiz, setQuiz] = useState(null);
+const [quiz, setQuiz] = useState(null);
   const [attempts, setAttempts] = useState([]);
-    const [mode, setMode] = useState("info"); // info | taking | finished
+  const [mode, setMode] = useState("info"); // info | taking | finished
   const [currentAttempt, setCurrentAttempt] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [quizLoading, setQuizLoading] = useState(false);
+  const [bestGradeFromServer, setBestGradeFromServer] = useState(null);
   // eslint-disable-next-line no-unused-vars
   const [reviewLoading, setReviewLoading] = useState(false);
 
@@ -346,18 +347,72 @@ function QuizViewer({ mod, token, userId, courseId }) {
   const [currentPage, setCurrentPage] = useState(0);
   const [nextPage, setNextPage] = useState(-1);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [localQIndex, setLocalQIndex] = useState(0);
+  const navigatingBackRef = useRef(false);
 
   const containerRef = useRef(null);
   const timerRef = useRef(null);
 
+  const [staticFields, setStaticFields] = useState({});
+
+  const parseAndSetStaticFields = (questionsArr) => {
+    const newStatic = {};
+    const newInitial = {};
+    questionsArr.forEach(q => {
+      const div = document.createElement('div');
+      div.innerHTML = q.html;
+      const controls = Array.from(div.querySelectorAll('input[name], textarea[name], select[name]'));
+      
+      controls.forEach(el => {
+        if (!el.name) return;
+        if (el.type === 'hidden') {
+          newStatic[el.name] = el.value;
+        } else if (el.type === 'radio' && el.checked) {
+          newInitial[el.name] = el.value;
+        } else if (el.type === 'checkbox' && el.checked) {
+          if (!newInitial[el.name]) newInitial[el.name] = [];
+          newInitial[el.name].push(el.value);
+        } else if (el.type !== 'radio' && el.type !== 'checkbox' && el.value) {
+          newInitial[el.name] = el.value;
+        }
+      });
+    });
+    setStaticFields(prev => ({ ...prev, ...newStatic }));
+    setLocalAnswers(prev => ({ ...newInitial, ...prev }));
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
-      const [qr, ar] = await Promise.all([
+      const [qr, ar, br] = await Promise.all([
         moodlePost(token, "mod_quiz_get_quizzes_by_courses", { "courseids[0]": courseId }),
         moodlePost(token, "mod_quiz_get_user_attempts", { quizid: mod.instance, userid: userId, status: "all" }),
+        moodlePost(token, "gradereport_user_get_grade_items", { courseid: courseId, userid: userId })
       ]);
       const found = qr.quizzes?.find(q => q.id === mod.instance || q.coursemodule === mod.id) || qr.quizzes?.[0];
+      
+      if (found) {
+        let cleanIntro = found.intro || "";
+        const match = cleanIntro.match(/<!-- SETTINGS:timelimit=(\d+);attempts=(\d+) -->/);
+        if (match) {
+          found.parsedTimeLimit = parseInt(match[1], 10);
+          found.parsedAttempts = parseInt(match[2], 10);
+          found.intro = cleanIntro.replace(match[0], "");
+        } else {
+          found.parsedTimeLimit = found.timelimit || 0;
+          found.parsedAttempts = found.attempts || 0;
+        }
+      }
+      
+      if (br?.usergrades?.[0]?.gradeitems) {
+          const gradeItem = br.usergrades[0].gradeitems.find(g => g.cmid === mod.id);
+          if (gradeItem && !gradeItem.gradeishidden && gradeItem.graderaw !== null) {
+              setBestGradeFromServer(parseFloat(gradeItem.graderaw));
+          } else {
+              setBestGradeFromServer(null);
+          }
+      }
+      
       setQuiz(found);
       setAttempts(ar.attempts || []);
     } catch (e) { console.error(e); }
@@ -365,29 +420,80 @@ function QuizViewer({ mod, token, userId, courseId }) {
   };
 
   const collectAnswers = () => {
-    const container = containerRef.current;
-    if (!container) return [];
     const formData = [];
-    const radioGroups = {};
-    container.querySelectorAll('input[type="radio"]').forEach(r => {
-      if (r.checked) radioGroups[r.name] = r.value;
-    });
-    Object.entries(radioGroups).forEach(([name, value]) => formData.push({ name, value }));
-    container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-      formData.push({ name: cb.name, value: cb.checked ? cb.value : "0" });
-    });
-    container.querySelectorAll('input[type="text"],input[type="number"],input[type="hidden"],select,textarea').forEach(el => {
-      if (el.name && !el.name.startsWith('_:')) formData.push({ name: el.name, value: el.value });
-    });
+    const uniqueFields = new Map();
+    
+    // Önce Moodle'ın zorunlu sistem alanlarını (sequencecheck vs.) ekliyoruz
+    for (const [name, value] of Object.entries(staticFields)) {
+        uniqueFields.set(name, value);
+    }
+    
+    // Sonra öğrencinin cevaplarını ekliyoruz (Aynı name varsa ezer, yani -1 yerine asıl cevabı yazar)
+    for (const [name, value] of Object.entries(localAnswers)) {
+        uniqueFields.set(name, value);
+    }
+    
+    // Son halini Moodle'ın beklediği formData dizisine dönüştürüyoruz
+    for (const [name, value] of uniqueFields.entries()) {
+        if (Array.isArray(value)) {
+            value.forEach(v => formData.push({ name, value: v }));
+        } else {
+            formData.push({ name, value });
+        }
+    }
+    
     return formData;
   };
 
+  const [localAnswers, setLocalAnswers] = useState({});
+  const [answeredState, setAnsweredState] = useState({});
+
+  const updateAnsweredState = () => {
+    if (!containerRef.current) return;
+    const newAnsw = {};
+    const questionDivs = containerRef.current.querySelectorAll('.question-container');
+    questionDivs.forEach((div, i) => {
+      // Find checked radios/checkboxes that are NOT the 'Clear my choice' (-1) option
+      const checkedOptions = Array.from(div.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked'));
+      const hasRealChoice = checkedOptions.some(el => el.value !== "-1");
+      const hasText = !!div.querySelector('input[type="text"]:not([value=""]), textarea:not(:empty)');
+      
+      newAnsw[i] = hasRealChoice || hasText;
+    });
+    setAnsweredState(newAnsw);
+  };
+
+  // APPLY LOCAL ANSWERS TO DOM
+  // Because React dangerouslySetInnerHTML wipes native DOM state on re-render
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const elements = containerRef.current.querySelectorAll('input, select, textarea');
+    elements.forEach(el => {
+      if (!el.name) return;
+      const val = localAnswers[el.name];
+      if (val !== undefined) {
+        if (el.type === 'radio') {
+          el.checked = (el.value === val);
+        } else if (el.type === 'checkbox') {
+          if (Array.isArray(val)) {
+            el.checked = val.includes(el.value);
+          } else {
+            el.checked = (el.value === val);
+          }
+        } else {
+          el.value = val;
+        }
+      }
+    });
+    updateAnsweredState();
+  }, [localAnswers, localQIndex, questions]);
+
   const handleSubmit = async (finish = true) => {
+    const formData = collectAnswers();
     setSubmitLoading(true);
     setError(null);
     if (finish) clearInterval(timerRef.current);
     try {
-      const formData = collectAnswers();
       const params = { attemptid: currentAttempt?.id, finishattempt: finish ? 1 : 0, timeup: timeLeft === 0 ? 1 : 0 };
       formData.forEach((d, i) => { params[`data[${i}][name]`] = d.name; params[`data[${i}][value]`] = d.value; });
       const resData = await moodlePost(token, "mod_quiz_process_attempt", params);
@@ -396,10 +502,17 @@ function QuizViewer({ mod, token, userId, courseId }) {
       if (finish) {
         const review = await moodlePost(token, "mod_quiz_get_attempt_review", { attemptid: currentAttempt?.id });
         setReviewData(review);
-        setMode("finished");
+        setMode("info");
         await loadData();
       } else {
         setError("Cevaplar başarıyla kaydedildi."); 
+        const pageData = await moodlePost(token, "mod_quiz_get_attempt_data", { attemptid: currentAttempt.id, page: currentAttempt.currentpage });
+        if (!pageData.exception) {
+          setQuestions(pageData.questions || []);
+          parseAndSetStaticFields(pageData.questions || []);
+          setNextPage(pageData.nextpage);
+          setCurrentPage(currentAttempt.currentpage);
+        }
         setTimeout(() => setError(null), 3000);
       }
     } catch (e) {
@@ -409,12 +522,20 @@ function QuizViewer({ mod, token, userId, courseId }) {
 
   useEffect(() => { loadData(); }, [mod.instance, courseId, userId]); // eslint-disable-line
 
-  // Geri sayım
+  const handleSubmitRef = useRef();
+  useEffect(() => {
+    handleSubmitRef.current = handleSubmit;
+  });
+
   useEffect(() => {
     if (mode !== "taking" || timeLeft === null || timeLeft <= 0) return;
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 1) { clearInterval(timerRef.current); handleSubmit(true); return 0; }
+        if (prev <= 1) { 
+          clearInterval(timerRef.current); 
+          if (handleSubmitRef.current) handleSubmitRef.current(true); 
+          return 0; 
+        }
         return prev - 1;
       });
     }, 1000);
@@ -427,16 +548,97 @@ function QuizViewer({ mod, token, userId, courseId }) {
     return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
   };
 
-  const fetchPage = async (attemptId, pageNum) => {
-    const qRes = await moodlePost(token, "mod_quiz_get_attempt_data", {
-      attemptid: attemptId,
-      page: pageNum,
-    });
-    if (qRes.exception) throw new Error(qRes.message);
-    setQuestions(qRes.questions || []);
-    setNextPage(qRes.nextpage !== undefined ? qRes.nextpage : -1);
-    setCurrentPage(pageNum);
+  const fetchPage = async (attemptId, page) => {
+    setLoading(true);
+    try {
+      const pageData = await moodlePost(token, "mod_quiz_get_attempt_data", { attemptid: attemptId, page });
+      if (pageData.exception) throw new Error(pageData.message || "Sayfa verisi alınamadı.");
+      setQuestions(pageData.questions || []);
+      parseAndSetStaticFields(pageData.questions || []);
+      setNextPage(pageData.nextpage);
+      setLocalQIndex(navigatingBackRef.current ? Math.max(0, (pageData.questions?.length || 1) - 1) : 0);
+      setCurrentPage(page);
+    } catch (e) {
+      setError("Hata: " + e.message);
+    } finally {
+      navigatingBackRef.current = false;
+      setLoading(false);
+    }
   };
+
+  const goNext = async () => {
+    updateAnsweredState();
+    if (localQIndex < questions.length - 1) {
+      setLocalQIndex(localQIndex + 1);
+    } else if (nextPage !== -1) {
+      await navigatePage(nextPage);
+    }
+  };
+
+  const goPrev = async () => {
+    updateAnsweredState();
+    if (localQIndex > 0) {
+      setLocalQIndex(localQIndex - 1);
+    } else if (currentPage > 0) {
+      navigatingBackRef.current = true;
+      await navigatePage(currentPage - 1);
+    }
+  };
+
+  const goToQuestion = (index) => {
+    updateAnsweredState();
+    setLocalQIndex(index);
+  };
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    const handleChange = (e) => {
+      const { name, type, value, checked } = e.target;
+      if (!name) return;
+      if (type === 'radio') {
+        setLocalAnswers(prev => ({ ...prev, [name]: value }));
+      } else if (type === 'checkbox') {
+        setLocalAnswers(prev => {
+          const current = prev[name];
+          let arr = [];
+          if (Array.isArray(current)) arr = current;
+          else if (current) arr = [current];
+          
+          if (checked) {
+            return { ...prev, [name]: [...new Set([...arr, value])] };
+          } else {
+            return { ...prev, [name]: arr.filter(v => v !== value) };
+          }
+        });
+      } else {
+        setLocalAnswers(prev => ({ ...prev, [name]: value }));
+      }
+    };
+
+    const handleRowClick = (e) => {
+      const row = e.target.closest('.r0, .r1, .r2, .r3, .r4, .r5, .r6, .r7, .r8, .r9');
+      if (!row) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
+      
+      const input = row.querySelector('input[type="radio"], input[type="checkbox"]');
+      if (input) {
+        if (!input.checked) {
+          input.click();
+        } else if (input.type === 'checkbox') {
+          input.click();
+        }
+      }
+    };
+
+    container.addEventListener('change', handleChange);
+    container.addEventListener('click', handleRowClick);
+    return () => {
+      container.removeEventListener('change', handleChange);
+      container.removeEventListener('click', handleRowClick);
+    };
+  }, [localQIndex, questions.length, nextPage]);
 
   const startOrResume = async () => {
     setError(null);
@@ -464,9 +666,9 @@ function QuizViewer({ mod, token, userId, courseId }) {
       setCurrentAttempt(attemptObj);
       await fetchPage(attemptObj.id, attemptObj.currentpage || 0);
 
-      if (quiz?.timelimit > 0 && attemptObj.timestart) {
+      if (quiz?.parsedTimeLimit > 0 && attemptObj.timestart) {
         const elapsed = Math.floor(Date.now() / 1000) - attemptObj.timestart;
-        const remaining = quiz.timelimit - elapsed;
+        const remaining = quiz.parsedTimeLimit - elapsed;
         setTimeLeft(remaining > 0 ? remaining : 0);
       }
       setMode("taking");
@@ -476,10 +678,10 @@ function QuizViewer({ mod, token, userId, courseId }) {
   };
 
   const navigatePage = async (targetPage) => {
+    const formData = collectAnswers(); // COLLECT FIRST!
     setIsNavigating(true);
     setError(null);
     try {
-      const formData = collectAnswers();
       const params = { attemptid: currentAttempt.id, finishattempt: 0, timeup: 0 };
       formData.forEach((d, i) => { params[`data[${i}][name]`] = d.name; params[`data[${i}][value]`] = d.value; });
       const resData = await moodlePost(token, "mod_quiz_process_attempt", params);
@@ -498,26 +700,57 @@ function QuizViewer({ mod, token, userId, courseId }) {
   const finished = attempts.filter(a => a.state === "finished");
   const ongoing  = attempts.find(a => a.state === "inprogress");
   const calculateScaledGrade = (sumgrades) => {
-    if (!quiz?.sumgrades || !quiz?.grade || parseFloat(quiz.sumgrades) === 0) return parseFloat(sumgrades || 0);
-    return (parseFloat(sumgrades || 0) / parseFloat(quiz.sumgrades)) * parseFloat(quiz.grade);
+    if (sumgrades === null || sumgrades === undefined) return null;
+    if (!quiz?.sumgrades || !quiz?.grade || parseFloat(quiz.sumgrades) === 0) return parseFloat(sumgrades);
+    return (parseFloat(sumgrades) / parseFloat(quiz.sumgrades)) * parseFloat(quiz.grade);
   };
-  const bestSumGrade = finished.reduce((b, a) => Math.max(b, parseFloat(a.sumgrades || 0)), 0);
-  const bestGrade = calculateScaledGrade(bestSumGrade);
+  
+  const bestGradeRaw = finished.length > 0 && finished[0].sumgrades !== undefined && finished[0].sumgrades !== null ? finished.reduce((b, a) => Math.max(b, parseFloat(a.sumgrades || 0)), 0) : null;
+  const bestGrade = bestGradeFromServer !== null ? bestGradeFromServer : (bestGradeRaw !== null ? calculateScaledGrade(bestGradeRaw) : null);
   const gradeSystemMax = quiz?.grade > 0 ? quiz.grade : quiz?.sumgrades;
-  const maxAttempts = quiz?.attempts || 0;
-  const canAttempt = maxAttempts === 0 || finished.length < maxAttempts || !!ongoing;
+  const maxAttempts = quiz?.parsedAttempts || 0;
+  
+  // Tek hakkı varsa ve o hakkı bitirdiyse giremesin
+  // Moodle'da attempts = 0 sınırsız demek
+  const hasFinishedAttempts = finished.length > 0;
+  const canAttempt = maxAttempts === 0 ? true : (finished.length < maxAttempts || !!ongoing);
 
   // BİTTİ EKRANI
   if (mode === "finished") {
-    const grade = parseFloat(reviewData?.grade || 0);
-    const passed = quiz?.gradepass > 0 ? grade >= quiz.gradepass : true;
+    // Determine the grade to show for the just-finished attempt.
+    let displayGrade = null;
+    let isHidden = false;
+    
+    // Check if marks are hidden by Moodle quiz settings
+    const hasHiddenMarks = reviewData?.questions?.length > 0 && reviewData.questions[0].mark === undefined;
+    
+    if (hasHiddenMarks && reviewData?.attempt?.sumgrades === undefined && reviewData?.grade === undefined) {
+      isHidden = true;
+    } else {
+      const calculatedSum = reviewData?.questions?.reduce((acc, q) => acc + parseFloat(q.mark || 0), 0) || 0;
+      
+      if (calculatedSum > 0) {
+         displayGrade = calculateScaledGrade(calculatedSum);
+      } else if (reviewData?.attempt?.sumgrades !== undefined && reviewData.attempt.sumgrades !== null) {
+         displayGrade = calculateScaledGrade(reviewData.attempt.sumgrades);
+      } else if (reviewData?.grade !== undefined && reviewData.grade !== null) {
+         displayGrade = parseFloat(reviewData.grade);
+      } else {
+         displayGrade = 0;
+      }
+    }
+    
+    const passed = (!isHidden && quiz?.gradepass > 0) ? displayGrade >= quiz.gradepass : true;
     return (
       <div className="space-y-4">
         <SectionHeader mod={mod} />
         <div className={`rounded-2xl border p-6 text-center ${passed ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
           <div className="text-5xl mb-3">{passed ? "🎉" : "😔"}</div>
           <div className={`text-[22px] font-bold mb-1 ${passed ? "text-green-700" : "text-red-700"}`}>{passed ? "Tebrikler!" : "Başarısız"}</div>
-          <div className="text-[15px] text-gray-600 mb-4">Puanınız: <strong>{calculateScaledGrade(reviewData?.grade || 0).toFixed(1)}</strong>{gradeSystemMax ? ` / ${gradeSystemMax}` : ""}</div>
+          <div className="text-[15px] text-gray-600 mb-4">
+            Puanınız: <strong>{isHidden ? "Açıklanmadı (Gizli)" : displayGrade.toFixed(1)}</strong>
+            {!isHidden && gradeSystemMax ? ` / ${gradeSystemMax}` : ""}
+          </div>
           <button onClick={() => { setMode("info"); setReviewData(null); setQuestions([]); }}
             className="bg-[#495057] hover:bg-[#343a40] text-white text-[13px] font-semibold px-6 py-2 rounded-xl transition-colors">
             ← Sınav Bilgisine Dön
@@ -553,65 +786,102 @@ function QuizViewer({ mod, token, userId, courseId }) {
   // SINAV EKRANI
   if (mode === "taking") {
     const timerWarning = timeLeft !== null && timeLeft < 300;
+    
+    const getBoxColor = (idx) => {
+      const isCurrent = idx === localQIndex;
+      if (answeredState[idx]) return `bg-green-500 border-green-600 text-white shadow-sm ${isCurrent ? 'ring-4 ring-green-300 scale-110' : ''}`; // Answered
+      return `bg-yellow-400 border-yellow-500 text-yellow-900 shadow-sm ${isCurrent ? 'ring-4 ring-yellow-300 scale-110' : ''}`; // Empty or cleared
+    };
+
     return (
-      <div className="space-y-4">
-        <style>{`.qw .que{background:#fff;border-radius:16px;border:1px solid #e5e7eb;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);}.qw .info{display:none;}.qw .qtext{font-size:14px;font-weight:600;color:#374151;margin-bottom:12px;line-height:1.6;}.qw .answer{font-size:13px;color:#495057;}.qw .answer .r0,.qw .answer .r1,.qw .answer .r2,.qw .answer .r3,.qw .answer .r4{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;margin:4px 0;cursor:pointer;border:1px solid #e5e7eb;transition:background .15s;}.qw .answer .r0:hover,.qw .answer .r1:hover,.qw .answer .r2:hover,.qw .answer .r3:hover,.qw .answer .r4:hover{background:#f3f4f6;}.qw input[type=radio],.qw input[type=checkbox]{width:16px;height:16px;cursor:pointer;}.qw input[type=text],.qw textarea{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;outline:none;}.qw input[type=text]:focus,.qw textarea:focus{border-color:#495057;}.qw label{cursor:pointer;flex:1;}.qw .ablock{margin-top:12px;}.qw select{border:1px solid #d1d5db;border-radius:8px;padding:6px 10px;font-size:13px;}`}</style>
-        <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-5 py-3 shadow-sm sticky top-0 z-10">
-          <div className="flex items-center gap-3">
-            <span className="text-xl">📋</span>
-            <span className="text-[14px] font-bold text-[#495057] truncate max-w-[200px]">{mod.name}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            {timeLeft !== null && (
-              <div className={`text-[13px] font-bold px-3 py-1.5 rounded-xl border ${timerWarning ? "text-red-600 bg-red-50 border-red-200 animate-pulse" : "text-[#495057] bg-gray-50 border-gray-200"}`}>
-                ⏱️ {formatTimer(timeLeft)}
-              </div>
-            )}
-            <span className="text-[12px] text-gray-400">{questions.length} soru</span>
-          </div>
-        </div>
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 text-[13px] font-medium p-3 rounded-xl">{error}</div>}
-        <div ref={containerRef} className="qw space-y-3">
-          {questions.length === 0
-            ? <div className="text-center py-10 text-gray-400 bg-white rounded-2xl border border-gray-200">Soru bulunamadı.</div>
-            : questions.map((q, i) => (
-              <div key={q.slot} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[12px] font-bold text-gray-400 uppercase tracking-wide">Soru {q.number || i+1}</span>
-                  {q.maxmark > 0 && <span className="text-[11px] text-gray-400">{q.maxmark} puan</span>}
+      <div className="fixed inset-0 z-[999] bg-[#f8f9fa] overflow-y-auto p-4 md:p-8 flex items-start justify-center">
+        <div className="w-full max-w-5xl flex flex-col md:flex-row gap-5 items-start">
+        <style>{`.qw .que{background:#fff;border-radius:16px;border:1px solid #e5e7eb;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);}.qw .info{display:none;}.qw .qtext{font-size:14px;font-weight:600;color:#374151;margin-bottom:12px;line-height:1.6;}.qw .answer{font-size:13px;color:#495057;}.qw .answer .r0,.qw .answer .r1,.qw .answer .r2,.qw .answer .r3,.qw .answer .r4{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;margin:4px 0;cursor:pointer;border:1px solid #e5e7eb;transition:all .15s;}.qw .answer .r0:hover,.qw .answer .r1:hover,.qw .answer .r2:hover,.qw .answer .r3:hover,.qw .answer .r4:hover{background:#f3f4f6;}.qw .qtype_multichoice_clearchoice { display: none !important; }.qw input[type=radio]:checked + div, .qw input[type=checkbox]:checked + div { font-weight: 700; color: #1d4ed8; }.qw input[type=radio]:checked, .qw input[type=checkbox]:checked { accent-color: #1d4ed8; transform: scale(1.1); }.qw input[type=radio],.qw input[type=checkbox]{width:16px;height:16px;cursor:pointer;}.qw input[type=text],.qw textarea{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;outline:none;}.qw input[type=text]:focus,.qw textarea:focus{border-color:#495057;}.qw label{cursor:pointer;flex:1;}.qw .ablock{margin-top:12px;}.qw select{border:1px solid #d1d5db;border-radius:8px;padding:6px 10px;font-size:13px;}`}</style>
+        
+        <div className="flex-1 w-full space-y-4">
+          <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-5 py-3 shadow-sm sticky top-0 z-20">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">📋</span>
+              <span className="text-[14px] font-bold text-[#495057] truncate max-w-[200px]">{mod.name}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              {timeLeft !== null && (
+                <div className={`text-[13px] font-bold px-3 py-1.5 rounded-xl border ${timerWarning ? "text-red-600 bg-red-50 border-red-200 animate-pulse" : "text-[#495057] bg-gray-50 border-gray-200"}`}>
+                  ⏱️ {formatTimer(timeLeft)}
                 </div>
-                <div dangerouslySetInnerHTML={{ __html: q.html }} />
+              )}
+              <div className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-xl border border-blue-200 text-[13px] font-bold">
+                Soru {localQIndex + 1} / {questions.length}
               </div>
-            ))}
+            </div>
+          </div>
+          
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 text-[13px] font-medium p-3 rounded-xl">{error}</div>}
+          
+          <div ref={containerRef} className="qw space-y-3">
+            {questions.length === 0
+              ? <div className="text-center py-10 text-gray-400 bg-white rounded-2xl border border-gray-200">Soru bulunamadı.</div>
+              : questions.map((q, i) => (
+                  <div key={q.slot} style={{ display: i === localQIndex ? 'block' : 'none' }} className="question-container bg-white rounded-2xl border border-gray-200 p-5 shadow-sm animate-fade-in">
+                    <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-3">
+                      <span className="text-[14px] font-bold text-gray-500 uppercase tracking-wide">Soru {q.number || (i + 1)}</span>
+                      <div className="flex items-center gap-2">
+                        {q.maxmark > 0 && <span className="text-[12px] font-semibold bg-gray-100 text-gray-600 px-2 py-1 rounded-md">{q.maxmark} puan</span>}
+                      </div>
+                    </div>
+                    <div dangerouslySetInnerHTML={{ __html: q.html }} />
+                  </div>
+              ))}
+          </div>
+          
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm flex items-center gap-3">
+            {(currentPage > 0 || localQIndex > 0) && (
+              <button onClick={goPrev} disabled={submitLoading || isNavigating}
+                className="flex-1 py-3 rounded-xl text-[14px] font-semibold text-white bg-gray-500 hover:bg-gray-600 transition-colors disabled:opacity-50">
+                ← Önceki Soru
+              </button>
+            )}
+
+            {(nextPage !== -1 || localQIndex < questions.length - 1) ? (
+              <button onClick={goNext} disabled={submitLoading || isNavigating}
+                className="flex-[2] py-3 rounded-xl text-[14px] font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors disabled:opacity-50">
+                Sonraki Soru →
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsConfirmModalOpen(true)}
+                disabled={submitLoading || isNavigating}
+                className="flex-[2] py-3 rounded-xl text-[15px] font-bold text-white bg-[#28a745] hover:bg-[#218838] shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                {submitLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Kaydediliyor...</> : "✅ Sınavı Bitir ve Kaydet"}
+              </button>
+            )}
+          </div>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm flex items-center gap-3">
-          {currentPage > 0 && (
-            <button onClick={() => navigatePage(currentPage - 1)} disabled={submitLoading || isNavigating}
-              className="px-4 py-3 rounded-xl text-[13px] font-semibold border border-gray-300 text-[#495057] hover:bg-gray-50 transition-colors disabled:opacity-50">
-              ← Geri
-            </button>
-          )}
 
-          <button onClick={() => handleSubmit(false)} disabled={submitLoading || isNavigating}
-            className="flex-1 py-3 rounded-xl text-[13px] font-semibold border border-gray-300 text-[#495057] hover:bg-gray-50 transition-colors disabled:opacity-50">
-            💾 Kaydet
-          </button>
-
-          {nextPage !== -1 ? (
-            <button onClick={() => navigatePage(nextPage)} disabled={submitLoading || isNavigating}
-              className="px-6 py-3 rounded-xl text-[13px] font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors disabled:opacity-50">
-              İleri →
-            </button>
-          ) : (
-            <button
-              onClick={() => setIsConfirmModalOpen(true)}
-              disabled={submitLoading || isNavigating}
-              className="flex-[2] py-3 rounded-xl text-[14px] font-semibold text-white bg-[#495057] hover:bg-[#343a40] transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
-              {submitLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Gönderiliyor...</> : "✅ Sınavı Bitir ve Gönder"}
-            </button>
-          )}
+        {/* Navigation Sidebar */}
+        <div className="w-full md:w-64 shrink-0">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm sticky top-0 z-20">
+            <div className="flex flex-wrap gap-2">
+               {questions.map((q, i) => (
+                   <button key={i} onClick={() => goToQuestion(i)} 
+                     className={`w-[38px] h-[38px] flex items-center justify-center rounded-xl font-bold text-[13px] border transition-all hover:-translate-y-0.5 ${getBoxColor(i)}`}>
+                     {i + 1}
+                   </button>
+               ))}
+            </div>
+            <div className="mt-6 space-y-3 text-[13px] font-semibold text-gray-600">
+               <div className="flex items-center gap-3"><div className="w-4 h-4 bg-green-500 border border-green-600 rounded-md shadow-sm"></div> İşaretlendi</div>
+               <div className="flex items-center gap-3"><div className="w-4 h-4 bg-yellow-400 border border-yellow-500 rounded-md shadow-sm"></div> Boş (veya Temizlendi)</div>
+            </div>
+            <div className="mt-6 pt-5 border-t border-gray-100">
+               <button onClick={() => setIsConfirmModalOpen(true)} disabled={submitLoading || isNavigating}
+                  className="w-full py-3 rounded-xl font-bold text-white bg-gray-800 hover:bg-gray-900 transition-colors shadow-md text-[13px]">
+                  Sınavı Tamamla
+               </button>
+            </div>
+          </div>
         </div>
-
+        
         {/* Sınav Bitirme Onay Modalı */}
         {isConfirmModalOpen && (
           <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4">
@@ -646,6 +916,7 @@ function QuizViewer({ mod, token, userId, courseId }) {
             </div>
           </div>
         )}
+        </div>
       </div>
     );
   }
@@ -656,22 +927,26 @@ function QuizViewer({ mod, token, userId, courseId }) {
       <SectionHeader mod={mod} />
       <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
         <div className="flex flex-wrap gap-2 mb-4">
-          {quiz?.timelimit > 0 && <span className="text-[12px] font-semibold px-3 py-1 rounded-full bg-orange-100 text-orange-700">⏱️ Süre: {Math.floor(quiz.timelimit/60)} dk</span>}
+          {quiz?.parsedTimeLimit > 0 && <span className="text-[12px] font-semibold px-3 py-1 rounded-full bg-orange-100 text-orange-700">⏱️ Süre: {Math.floor(quiz.parsedTimeLimit/60)} dk</span>}
           {maxAttempts > 0 && <span className="text-[12px] font-semibold px-3 py-1 rounded-full bg-blue-100 text-blue-700">🔁 İzin verilen deneme: {maxAttempts}</span>}
           {quiz?.grade > 0 && <span className="text-[12px] font-semibold px-3 py-1 rounded-full bg-purple-100 text-purple-700">⭐ Maks. Puan: {quiz.grade}</span>}
           {finished.length > 0 && <span className="text-[12px] font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700">✅ {finished.length} deneme tamamlandı</span>}
         </div>
         {quiz?.intro && <div className="text-[13px] text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: quiz.intro }} />}
       </div>
+      
       {finished.length > 0 && (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
           <span className="text-2xl">🏆</span>
           <div>
             <div className="text-[13px] font-bold text-green-800">En İyi Puanınız</div>
-            <div className="text-[20px] font-bold text-green-700">{bestGrade.toFixed(1)}{gradeSystemMax ? ` / ${gradeSystemMax}` : ""}</div>
+            <div className="text-[20px] font-bold text-green-700">
+              {bestGrade !== null ? `${bestGrade.toFixed(1)}${gradeSystemMax ? ` / ${gradeSystemMax}` : ""}` : "Açıklanmadı (Gizli)"}
+            </div>
           </div>
         </div>
       )}
+
       {attempts.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 text-[14px] font-bold text-[#495057]">📊 Deneme Geçmişi</div>
@@ -680,11 +955,11 @@ function QuizViewer({ mod, token, userId, courseId }) {
               <div key={a.id} className="flex items-center justify-between px-5 py-3">
                 <div>
                   <div className="text-[13px] font-semibold text-[#495057]">Deneme {i+1}</div>
-                  <div className="text-[11px] text-gray-400">{formatDate(a.timestart)}</div>
+                  <div className="text-[11px] text-gray-400">{a.timefinish > 0 ? new Date(a.timefinish * 1000).toLocaleString() : "Devam Ediyor"}</div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {a.state === "finished" && a.sumgrades !== null && (
-                    <div className="text-[13px] font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full">{calculateScaledGrade(a.sumgrades).toFixed(1)}{gradeSystemMax ? ` / ${gradeSystemMax}` : ""}</div>
+                  {a.state === "finished" && a.sumgrades !== null && a.sumgrades !== undefined && (
+                    <div className="text-[13px] font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full">{calculateScaledGrade(a.sumgrades)?.toFixed(1)}{gradeSystemMax ? ` / ${gradeSystemMax}` : ""}</div>
                   )}
                   <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${a.state==="finished" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
                     {a.state === "finished" ? "Tamamlandı" : "Devam Ediyor"}
@@ -695,15 +970,21 @@ function QuizViewer({ mod, token, userId, courseId }) {
           </div>
         </div>
       )}
+      
       {error && <div className="bg-red-50 border border-red-200 text-red-700 text-[13px] font-medium p-3 rounded-xl">{error}</div>}
-      {canAttempt ? (
-        <button onClick={startOrResume} disabled={quizLoading}
-          className="w-full py-3 rounded-2xl text-[14px] font-semibold text-white bg-[#495057] hover:bg-[#343a40] transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+      
+      <div className="relative group w-full mt-4 pb-2">
+        <button onClick={startOrResume} disabled={quizLoading || !canAttempt}
+          className="w-full py-3 rounded-2xl text-[14px] font-bold text-white bg-[#495057] hover:bg-[#343a40] transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
           {quizLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Yükleniyor...</> : ongoing ? "▶️ Devam Et" : attempts.length > 0 ? "🔁 Tekrar Dene" : "📋 Sınava Başla"}
         </button>
-      ) : (
-        <div className="text-center py-3 text-[13px] text-gray-400 bg-gray-50 rounded-2xl border border-gray-200">Maksimum deneme sayısına ulaşıldı.</div>
-      )}
+        {!canAttempt && (
+          <div className="absolute bottom-[calc(100%-8px)] left-1/2 -translate-x-1/2 mb-2 w-max px-3 py-1.5 bg-gray-800 text-white text-[11px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
+            Sınava giriş hakkınız dolmuştur.
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1669,7 +1950,7 @@ function BigBlueButtonViewer({ mod, token, userId }) {
       }
     }
     fetchBBBData();
-  }, [mod.instance, token]);
+  }, [mod.instance, token, mod.id]);
 
   const handleJoin = async () => {
     setJoining(true);

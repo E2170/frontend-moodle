@@ -5,3 +5,13 @@ html, body {
   margin: 0;
   padding: 0;
 }
+/* Quiz answer rows fully clickable natively via CSS */
+.qw .answer > div { position: relative; }
+.qw .answer > div label { position: static; display: inline-block; width: 100%; height: 100%; cursor: pointer; }
+.qw .answer > div label::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  cursor: pointer;
+  z-index: 5;
+}

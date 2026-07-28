@@ -26,4 +26,12 @@ export default defineConfig([
       "preserve-caught-error": "off"
     }
   },
+  {
+    files: ['server-tools/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node
+      }
+    }
+  }
 ])

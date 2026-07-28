@@ -105,6 +105,10 @@ function YoutubeFormModal({ sectionNum, courseId, token, onClose, onSaved }) {
 // Aktivite Ekleme — Arka Planda Parametre Çekme (Native UI)
 // ─────────────────────────────────────────────
 function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSaved }) {
+  const now = new Date();
+  const tzOffset = now.getTimezoneOffset() * 60000;
+  const localISOTime = (new Date(now - tzOffset)).toISOString().slice(0, 16);
+
   const [form, setForm] = useState({ 
     name: "", 
     intro: "", 
@@ -118,7 +122,7 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
     // Quiz fields
     timelimit: "60",
     attempts: "1",
-    timeopen: "",
+    timeopen: localISOTime,
     timeclose: "",
     // Choice fields
     choiceoptions: ""
@@ -186,7 +190,7 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
         section: sectionNum,
         type: actType.moodleId,
         name: form.name,
-        description: (form.intro || "") + (actType.moodleId === "choice" ? "|||CHOICEOPTIONS|||" + (form.choiceoptions || "") : ""),
+        description: (form.intro || "") + (actType.moodleId === "choice" ? "|||CHOICEOPTIONS|||" + (form.choiceoptions || "") : "") + (actType.moodleId === "quiz" ? `<!-- SETTINGS:timelimit=${parseInt(form.timelimit, 10) * 60 || 0};attempts=${parseInt(form.attempts, 10) || 0} -->` : ""),
         // Tüm aktiviteler için varsayılan olarak (0) integer gönderilir:
         duedate: toUnix(form.duedate),
         timeopen: toUnix(form.timeopen || form.allowsubmissionsfromdate),
@@ -941,6 +945,8 @@ export default function TeacherCoursePage() {
                 if (form.examNote) {
                   fullIntro += `<br><br><strong>Sınav Notu:</strong><br>${form.examNote}`;
                 }
+                
+                fullIntro += `<!-- SETTINGS:timelimit=${parseInt(form.timelimit, 10) * 60 || 0};attempts=${parseInt(form.attempts, 10) || 0} -->`;
 
                 const payload = {
                   courseid: courseId,

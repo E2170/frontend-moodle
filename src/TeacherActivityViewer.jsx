@@ -230,6 +230,9 @@ function TeacherQuizViewer({ mod, token, courseId }) {
 
   const [quizSlots, setQuizSlots] = useState([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isPublishConfirmOpen, setIsPublishConfirmOpen] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishStatus, setPublishStatus] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -286,22 +289,62 @@ function TeacherQuizViewer({ mod, token, courseId }) {
 
   if (loading) return <Spinner text="Sınav sonuçları yükleniyor..." />;
 
-  const participated = users.filter(u => attemptsData[u.id]);
-  const notParticipated = users.filter(u => !attemptsData[u.id]);
+  const participated = users.filter(u => attemptsData[u.id] && attemptsData[u.id].state === "finished");
+  const notParticipated = users.filter(u => !attemptsData[u.id] || attemptsData[u.id].state !== "finished");
+  
+  const calculateScaledGrade = (sumgrades) => {
+    if (sumgrades === null || sumgrades === undefined) return 0;
+    if (!quiz?.sumgrades || !quiz?.grade || parseFloat(quiz.sumgrades) === 0) return parseFloat(sumgrades);
+    return (parseFloat(sumgrades) / parseFloat(quiz.sumgrades)) * parseFloat(quiz.grade);
+  };
+
   const avgGrade = participated.length > 0
-    ? (participated.reduce((s, u) => s + parseFloat(attemptsData[u.id]?.sumgrades || 0), 0) / participated.length).toFixed(1)
+    ? (participated.reduce((s, u) => s + calculateScaledGrade(attemptsData[u.id]?.sumgrades), 0) / participated.length).toFixed(1)
     : "-";
+
+  const handlePublish = async () => {
+    setIsPublishConfirmOpen(false);
+    setPublishing(true);
+    setPublishStatus(null);
+    try {
+      const res = await moodlePost(token, "local_vueapi_publish_quiz", { quizid: mod.instance });
+      if (res.status) {
+        setPublishStatus({ type: 'success', text: "Başarılı: " + res.message });
+        setQuiz(prev => prev ? { ...prev, reviewmarks: 69904 } : prev);
+      } else {
+        setPublishStatus({ type: 'error', text: "Hata: " + res.message });
+      }
+    } catch (e) {
+      setPublishStatus({ type: 'error', text: "Hata oluştu: " + e.message });
+    }
+    setPublishing(false);
+  };
+
+  const isPublished = quiz?.reviewmarks === 69904;
 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-lg font-bold text-gray-800">📋 {mod.name}</h2>
-          <button onClick={() => setIsEditModalOpen(true)}
-             className="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors">
-            📝 Soruları İncele / Düzenle
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => setIsPublishConfirmOpen(true)} disabled={publishing || isPublished}
+               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 ${isPublished ? 'bg-gray-100 text-gray-500' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}>
+              {isPublished ? "✅ Yayımlandı" : publishing ? "Yayınlanıyor..." : "📢 Sonuçları Yayınla"}
+            </button>
+            <button onClick={() => setIsEditModalOpen(true)}
+               className="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors">
+              📝 Soruları İncele / Düzenle
+            </button>
+          </div>
         </div>
+        
+        {publishStatus && (
+          <div className={`mb-3 p-3 rounded-lg text-sm font-medium ${publishStatus.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            {publishStatus.text}
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-blue-50 rounded-xl p-3 text-center">
             <div className="text-xl font-black text-blue-700">{participated.length}</div>
@@ -368,8 +411,14 @@ function TeacherQuizViewer({ mod, token, courseId }) {
         <div className="divide-y divide-gray-50">
           {users.map(u => {
             const attempt = attemptsData[u.id];
-            const grade = attempt?.sumgrades !== undefined && attempt.sumgrades !== null
-              ? parseFloat(attempt.sumgrades).toFixed(1) : null;
+            
+            const gradeRaw = attempt?.sumgrades !== undefined && attempt.sumgrades !== null
+              ? parseFloat(attempt.sumgrades) : null;
+            const grade = gradeRaw !== null && quiz?.sumgrades > 0 && quiz?.grade > 0
+              ? ((gradeRaw / parseFloat(quiz.sumgrades)) * parseFloat(quiz.grade)).toFixed(1)
+              : (gradeRaw !== null ? gradeRaw.toFixed(1) : null);
+            const gradeSystemMax = quiz?.grade > 0 ? quiz.grade : quiz?.sumgrades;
+
             const isExpanded = expandedUser === u.id;
             const review = attempt ? reviewData[attempt.id] : null;
 
@@ -390,7 +439,7 @@ function TeacherQuizViewer({ mod, token, courseId }) {
                         </span>
                         {grade !== null && (
                           <span className="font-bold text-sm text-blue-700 bg-blue-50 px-3 py-0.5 rounded-full">
-                            {grade}{quiz?.sumgrades ? ` / ${quiz.sumgrades}` : ""}
+                            {grade}{gradeSystemMax ? ` / ${gradeSystemMax}` : ""}
                           </span>
                         )}
                         <button onClick={() => isExpanded ? setExpandedUser(null) : loadReview(attempt.id, u.id)}
@@ -479,6 +528,36 @@ function TeacherQuizViewer({ mod, token, courseId }) {
               </button>
               <button onClick={() => setIsEditModalOpen(false)} className="px-8 py-2.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-md">
                 Pencereyi Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Yayınlama Onay Modalı */}
+      {isPublishConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h3 className="font-bold text-gray-800 text-lg">Onay Gerekli</h3>
+              <button onClick={() => setIsPublishConfirmOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                ✕
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-2 text-gray-700">
+                <div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-2xl shrink-0">
+                  ⚠️
+                </div>
+                <div>Sınav sonuçlarını yayınlamak ve öğrencilere bildirim göndermek istediğinize emin misiniz?</div>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-100">
+              <button onClick={() => setIsPublishConfirmOpen(false)} className="px-5 py-2.5 rounded-xl font-semibold text-gray-600 hover:bg-gray-200 transition-colors">
+                İptal
+              </button>
+              <button onClick={handlePublish} className="px-5 py-2.5 rounded-xl font-semibold text-white bg-green-600 hover:bg-green-700 transition-colors flex items-center gap-2">
+                Evet, Yayınla
               </button>
             </div>
           </div>
@@ -797,7 +876,7 @@ function TeacherBigBlueButtonViewer({ mod, token }) {
       }
     }
     fetchBBBData();
-  }, [mod.instance, token]);
+  }, [mod.instance, token, mod.id]);
   const handleJoin = async () => {
     setJoining(true);
     try {

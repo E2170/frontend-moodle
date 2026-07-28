@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { moodlePost } from "./moodleApi";
+import { moodlePost, fetchUserAnnouncements } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import CourseCard from "./components/CourseCard";
@@ -26,6 +26,7 @@ export default function Dashboard() {
     ungraded: 0,
     completed: 0,
   });
+  const [totalCounts, setTotalCounts] = useState({ exams: 0, assigns: 0, virtuals: 0 });
 
   
   const fetchDashboardData = useCallback(async () => {
@@ -38,12 +39,12 @@ export default function Dashboard() {
       const [
         coursesResponse,
         timelineResponse,
-        announcementsResponse,
+        announcementsData,
         messagesResponse
       ] = await Promise.all([
         moodlePost(token, "core_enrol_get_users_courses", { userid: userInfo.userid }).catch(e => { console.error("courses error", e); return null; }),
         moodlePost(token, "core_calendar_get_action_events_by_timesort").catch(e => { console.error("timeline error", e); return null; }),
-        moodlePost(token, "mod_forum_get_forum_discussions", { forumid: "2" }).catch(e => { console.error("forum error", e); return null; }),
+        fetchUserAnnouncements(token, userInfo.userid).catch(e => { console.error("announcements error", e); return []; }),
         moodlePost(token, "core_message_get_conversations", { userid: userInfo.userid }).catch(e => { console.error("messages error", e); return null; })
       ]);
 
@@ -53,8 +54,11 @@ export default function Dashboard() {
 
           const coursesData = await safeParse(coursesResponse);
           const timelineData = await safeParse(timelineResponse);
-          const announcementsData = await safeParse(announcementsResponse);
           const messagesData = await safeParse(messagesResponse);
+
+          let exams = 0;
+          let assigns = 0;
+          let virtuals = 0;
 
           if (coursesData && Array.isArray(coursesData)) {
             const enrichedCourses = await Promise.all(coursesData.map(async (course) => {
@@ -72,6 +76,10 @@ export default function Dashboard() {
                   contentsRes.forEach(sec => {
                     if (sec.modules) {
                       sec.modules.forEach(mod => {
+                        if (mod.modname === "quiz") exams++;
+                        if (mod.modname === "assign") assigns++;
+                        if (["bigbluebuttonbn", "zoom", "perculus", "adobeconnect"].includes(mod.modname)) virtuals++;
+
                         // Count modules that have completion enabled (completion > 0)
                         if (mod.completion > 0) {
                           totalActivities++;
@@ -99,6 +107,7 @@ export default function Dashboard() {
             }));
             
             setCourses(enrichedCourses);
+            setTotalCounts({ exams, assigns, virtuals });
           }
 
           if (timelineData && Array.isArray(timelineData.events)) {
@@ -134,11 +143,8 @@ export default function Dashboard() {
             });
           }
 
-          if (
-            announcementsData &&
-            Array.isArray(announcementsData.discussions)
-          ) {
-            setAnnouncements(announcementsData.discussions);
+          if (announcementsData && Array.isArray(announcementsData)) {
+            setAnnouncements(announcementsData);
           }
 
           if (messagesData && Array.isArray(messagesData.conversations)) {
@@ -294,7 +300,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between p-4 border-b border-[#e9ecef]">
                <div className="flex items-center gap-2">
                  <h2 className="text-[15px] font-medium text-[#212529]">Sanal Sınıf</h2>
-                 <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{virtualClassroomEvents.length}</span>
+                 <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{totalCounts.virtuals}</span>
                </div>
                <div className="flex items-center gap-3">
 
@@ -410,7 +416,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between p-4 border-b border-[#e9ecef]">
                <div className="flex items-center gap-2">
                  <h2 className="text-[15px] font-medium text-[#212529]">Sınav</h2>
-                 <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{examEvents.length}</span>
+                 <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{totalCounts.exams}</span>
                </div>
                <div className="flex items-center gap-3">
 
@@ -436,7 +442,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between p-4 border-b border-[#e9ecef]">
                <div className="flex items-center gap-2">
                  <h2 className="text-[15px] font-medium text-[#212529]">Ödev</h2>
-                 <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{assignEvents.length}</span>
+                 <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{totalCounts.assigns}</span>
                </div>
                <div className="flex items-center gap-3">
 

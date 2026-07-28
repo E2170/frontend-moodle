@@ -1,7 +1,6 @@
 import React, { Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./AuthContext";
-import ErrorBoundary from "./ErrorBoundary";
 import AlertModal from "./AlertModal";
 import Layout from "./Layout";
 import ProtectedRoute from "./ProtectedRoute";
@@ -26,6 +25,15 @@ const TeacherReports = React.lazy(() => import("./TeacherReports"));
 const TeacherCoursePage = React.lazy(() => import("./TeacherCoursePage"));
 const TeacherCourses = React.lazy(() => import("./TeacherCourses"));
 
+const AuthRoute = () => {
+  const { user } = useAuth();
+  if (user) {
+    if (user.role === "teacher") return <Navigate to="/teacher-dashboard" replace />;
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <LoginPage />;
+};
+
 function App() {
   return (
     <AuthProvider>
@@ -41,7 +49,7 @@ function App() {
         }>
           <Routes>
           {/* Ana dizin (/) giriş sayfasını gösterir */}
-          <Route path="/" element={<LoginPage />} />
+          <Route path="/" element={<AuthRoute />} />
 
           {/* Korunan Rotalar */}
           <Route element={<ProtectedRoute />}>
