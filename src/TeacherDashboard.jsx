@@ -329,13 +329,25 @@ export default function TeacherDashboard() {
                 ) : (
                   <ul className="list-none p-0 m-0 border-l-[3px] border-[#e03a3c] pl-4 space-y-4">
                     {timelineEvents.slice(0, 5).map((event) => (
-                      <li key={event.id} className="relative">
-                        <div className="absolute w-2 h-2 bg-[#e03a3c] rounded-full -left-[21px] top-1"></div>
+                      <li 
+                        key={event.id} 
+                        className="relative cursor-pointer hover:bg-gray-50 transition-colors p-2 rounded-lg -mx-2"
+                        onClick={() => {
+                          if (event.course?.id) {
+                            let cmid = "";
+                            if (event.url && event.url.includes("?id=")) {
+                              try { cmid = "?cmid=" + new URL(event.url).searchParams.get("id"); } catch(e) {}
+                            }
+                            navigate(`/teacher/course/${event.course.id}${cmid}`);
+                          }
+                        }}
+                      >
+                        <div className="absolute w-2 h-2 bg-[#e03a3c] rounded-full -left-[13px] top-3"></div>
                         <span className="text-[#a0a5aa] text-[11px] block">{formatMoodleDate(event.timesort)}</span>
                         <label className="text-[13px] text-[#212529] block mb-0 leading-tight">
                           <b className="font-bold">{event.name}</b>
                         </label>
-                        <p className="text-[12px] text-[#6c757d] mb-1">{event.course?.fullname}</p>
+                        <span className="text-[#a0a5aa] text-[11px] block mt-0.5">{event.course?.fullname}</span>
                       </li>
                     ))}
                   </ul>

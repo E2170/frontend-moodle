@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useLocation, useParams, useNavigate } from "react-router-dom";
+import { useLocation, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { showAlert } from "./AlertModal";
 import TeacherActivityViewer from "./TeacherActivityViewer";
 import { useAuth } from "./AuthContext";
@@ -477,6 +477,7 @@ export default function TeacherCoursePage() {
   const { courseId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { userInfo } = useAuth();
 
 
@@ -553,11 +554,12 @@ export default function TeacherCoursePage() {
           
           setCourseDetail(prev => ({ ...prev, fullname: cName || prev.fullname || "Ders Görüntüleniyor" }));
           
-          if (location.state?.openCmid) {
+          if (location.state?.openCmid || searchParams.get("cmid")) {
              let targetMod = null;
              let targetSecId = null;
+             const cmidToFind = location.state?.openCmid || searchParams.get("cmid");
              for (const sec of sectionsData) {
-                const mod = sec.modules?.find(m => m.id == location.state.openCmid);
+                const mod = sec.modules?.find(m => String(m.id) === String(cmidToFind));
                 if (mod) {
                    targetMod = mod;
                    targetSecId = sec.id;
@@ -576,7 +578,7 @@ export default function TeacherCoursePage() {
         }
       }
     } catch (err) { console.error(err); }
-  }, [courseId, navigate, location.state]);
+  }, [courseId, navigate, location.state, searchParams]);
 
   useEffect(() => { 
     fetchCourseData(); 
@@ -712,7 +714,7 @@ export default function TeacherCoursePage() {
           </div>
         </div>
         <div className="w-1/3 flex justify-end">
-          <button onClick={fetchCourseData}
+          <button onClick={() => window.location.reload()}
             className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold px-4 py-1.5 rounded transition-colors">
             Yenile
           </button>

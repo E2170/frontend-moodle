@@ -278,7 +278,17 @@ export default function Dashboard() {
                     timelineEvents.slice(0, 4).map(event => (
                       <div 
                         key={event.id} 
-                        onClick={() => { if (event.course?.id) navigate(`/course/${event.course.id}`) }}
+                        onClick={() => {
+                          if (event.course?.id) {
+                            let cmid = "";
+                            if (event.url && event.url.includes("?id=")) {
+                              try {
+                                cmid = "?cmid=" + new URL(event.url).searchParams.get("id");
+                              } catch(e) {}
+                            }
+                            navigate(`/course/${event.course.id}${cmid}`);
+                          }
+                        }}
                         className="border-l-[3px] border-[#dc3545] pl-3 py-1 mb-4 cursor-pointer hover:bg-gray-50 transition-colors rounded-r-md"
                       >
                         <div className="text-[11px] text-[#e83e8c] font-medium mb-0.5 opacity-80">{formatMoodleDate(event.timesort)}</div>
@@ -300,7 +310,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between p-4 border-b border-[#e9ecef]">
                <div className="flex items-center gap-2">
                  <h2 className="text-[15px] font-medium text-[#212529]">Sanal Sınıf</h2>
-                 <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{totalCounts.virtuals}</span>
+                 <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{virtualClassroomEvents.length}</span>
                </div>
                <div className="flex items-center gap-3">
 
@@ -416,7 +426,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between p-4 border-b border-[#e9ecef]">
                <div className="flex items-center gap-2">
                  <h2 className="text-[15px] font-medium text-[#212529]">Sınav</h2>
-                 <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{totalCounts.exams}</span>
+                 <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{examEvents.length}</span>
                </div>
                <div className="flex items-center gap-3">
 
@@ -442,7 +452,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between p-4 border-b border-[#e9ecef]">
                <div className="flex items-center gap-2">
                  <h2 className="text-[15px] font-medium text-[#212529]">Ödev</h2>
-                 <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{totalCounts.assigns}</span>
+                 <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{assignEvents.length}</span>
                </div>
                <div className="flex items-center gap-3">
 

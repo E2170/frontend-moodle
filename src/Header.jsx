@@ -4,13 +4,137 @@ import { useAuth } from "./AuthContext";
 import { moodlePost } from "./moodleApi";
 import akuzemLogo from "./assets/akuzem-lg.png";
 
+const ProfileModal = ({ isOpen, onClose, userInfo, token }) => {
+  const [fullProfile, setFullProfile] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !userInfo?.userid) return;
+    
+    const fetchProfile = async () => {
+      setLoading(true);
+      try {
+        const res = await moodlePost(token, "core_user_get_users_by_field", { field: "id", "values[0]": userInfo.userid });
+        if (Array.isArray(res) && res.length > 0) {
+          setFullProfile(res[0]);
+        }
+      } catch (err) {
+        console.error("Profile fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchProfile();
+  }, [isOpen, userInfo, token]);
+
+  if (!isOpen) return null;
+
+  const profile = fullProfile || userInfo;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col relative animate-fade-in-up">
+        {/* Close Button */}
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-black/20 hover:bg-black/40 text-white rounded-full transition-colors z-10"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+
+        {/* Header Cover */}
+        <div className="h-32 bg-gradient-to-r from-[#0074b6] to-[#005a96] relative">
+          <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
+            {profile?.userpictureurl ? (
+              <img src={profile.userpictureurl.replace("https://moodle.argeyazilim.tr", "/api")} alt="Profile" className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-md" />
+            ) : (
+              <div className="w-24 h-24 rounded-full border-4 border-white bg-gray-200 shadow-md"></div>
+            )}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="pt-16 pb-8 px-6 text-center">
+          <h2 className="text-2xl font-bold text-gray-800">{profile?.fullname}</h2>
+          <p className="text-sm font-medium text-gray-500 mt-1">@{profile?.username || "kullanici"}</p>
+          
+          {loading ? (
+             <div className="mt-8 flex justify-center"><div className="w-6 h-6 border-2 border-[#0074b6] border-t-transparent rounded-full animate-spin"></div></div>
+          ) : (
+             <div className="mt-8 space-y-4 text-left">
+                {profile?.email && (
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">E-posta</span>
+                      <span className="text-[14px] font-medium text-gray-700">{profile.email}</span>
+                    </div>
+                  </div>
+                )}
+                {profile?.phone1 && (
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 shrink-0">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Telefon</span>
+                      <span className="text-[14px] font-medium text-gray-700">{profile.phone1}</span>
+                    </div>
+                  </div>
+                )}
+                {profile?.department && (
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 shrink-0">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Departman</span>
+                      <span className="text-[14px] font-medium text-gray-700">{profile.department}</span>
+                    </div>
+                  </div>
+                )}
+                {profile?.city && (
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 shrink-0">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Şehir</span>
+                      <span className="text-[14px] font-medium text-gray-700">{profile.city}{profile.country ? `, ${profile.country}` : ''}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="flex justify-between px-2 pt-2 border-t border-gray-100">
+                   <div className="text-center">
+                     <div className="text-xs text-gray-400 font-medium">Kullanıcı Rolü</div>
+                     <div className="text-sm font-bold text-gray-700 capitalize">{profile.roles ? profile.roles[0]?.shortname : "Sistem Kullanıcısı"}</div>
+                   </div>
+                   <div className="text-center">
+                     <div className="text-xs text-gray-400 font-medium">Son Giriş</div>
+                     <div className="text-sm font-bold text-gray-700">
+                       {profile.lastaccess ? new Date(profile.lastaccess * 1000).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' }) : "Bilinmiyor"}
+                     </div>
+                   </div>
+                </div>
+             </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userInfo, loading, logout, userRole } = useAuth();
+  const { userInfo, loading, logout, userRole, token } = useAuth();
 
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [recentMessages, setRecentMessages] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
@@ -109,29 +233,59 @@ export default function Header() {
         setUnreadNotifCount(count => Math.max(0, count - 1));
     }
     
+    const tokenStr = localStorage.getItem("moodle_token");
+    
     try {
-      const tokenStr = localStorage.getItem("moodle_token");
       await moodlePost(tokenStr, "core_message_mark_notification_read", {
         notificationid: notif.id,
-        useridto: userInfo.userid
+        timeread: Math.floor(Date.now() / 1000)
       });
     } catch (err) {
       console.error("Mark single notif read error", err);
     }
 
-    // Navigate to context url
+    // Determine cmid and courseid
+    let cmid = null;
+    let courseid = null;
+
     if (notif.customdata) {
         try {
             const cdata = typeof notif.customdata === "string" ? JSON.parse(notif.customdata) : notif.customdata;
-            if (cdata.courseid) {
-                navigate(`/course/${cdata.courseid}`);
-                return;
-            }
+            if (cdata.courseid) courseid = cdata.courseid;
+            if (cdata.cmid) cmid = cdata.cmid;
         } catch (e) { /* ignore parse error */ }
+    }
+
+    if (!cmid && notif.contexturl && notif.contexturl.includes("?id=")) {
+        try {
+            cmid = new URL(notif.contexturl).searchParams.get("id");
+        } catch(e) {}
+    }
+
+    if (cmid && !courseid) {
+        // Try to fetch courseid using cmid
+        try {
+            const cmRes = await moodlePost(tokenStr, "core_course_get_course_module", { cmid: cmid });
+            if (cmRes && cmRes.cm && cmRes.cm.course) {
+                courseid = cmRes.cm.course;
+            }
+        } catch(e) {
+            console.error("Failed to fetch course module info", e);
+        }
+    }
+
+    if (courseid) {
+        let cmidQuery = cmid ? `?cmid=${cmid}` : "";
+        if (userRole === "teacher") {
+            navigate(`/teacher/course/${courseid}${cmidQuery}`);
+        } else {
+            navigate(`/course/${courseid}${cmidQuery}`);
+        }
+        return;
     }
     
     if (notif.contexturl) {
-        window.open(notif.contexturl, "_blank");
+        window.location.href = notif.contexturl;
     }
   };
 
@@ -151,6 +305,14 @@ export default function Header() {
 
   return (
     <nav className="bg-[#19233e] text-white flex flex-col justify-center px-4 h-[66px] shadow-sm relative z-50 shrink-0">
+      {/* Profile Modal */}
+      <ProfileModal 
+        isOpen={isProfileModalOpen} 
+        onClose={() => setIsProfileModalOpen(false)} 
+        userInfo={userInfo}
+        token={token}
+      />
+      
       <div className="flex items-center justify-between w-full h-full">
         {/* Left Section: Logo & Mobile Toggle & Desktop Nav */}
         <div className="flex items-center gap-4 lg:gap-8 h-full">
@@ -227,7 +389,6 @@ export default function Header() {
                 {/* Header Toggles */}
                 <div className="bg-[#e9ecef] p-1.5 flex relative z-10">
                   <div onClick={() => { navigate('/messages'); setActiveDropdown(null); }} className="flex-1 bg-white rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#006cb5] shadow-sm cursor-pointer hover:bg-gray-50 transition-colors">Mesajlar</div>
-                  <div onClick={() => { navigate('/announcements'); setActiveDropdown(null); }} className="flex-1 rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#6c757d] cursor-pointer hover:text-[#495057] hover:bg-gray-200 transition-colors">Duyurular</div>
                 </div>
                 {/* Content */}
                 <div className="flex flex-col min-h-[220px] max-h-[350px] overflow-y-auto bg-white relative z-10 border-t border-gray-200">
@@ -288,7 +449,6 @@ export default function Header() {
                 <div className="absolute -top-[7px] right-[30px] sm:right-[10px] w-4 h-4 bg-[#e9ecef] rotate-45 border-l border-t border-gray-100"></div>
                 {/* Header Toggles */}
                 <div className="bg-[#e9ecef] p-1.5 flex relative z-10">
-                  <div onClick={() => { navigate('/calendar'); setActiveDropdown(null); }} className="flex-1 rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#6c757d] cursor-pointer hover:text-[#495057] hover:bg-gray-200 transition-colors">Aktiviteler</div>
                   <div className="flex-1 bg-white rounded-[6px] py-1.5 text-center text-[13px] font-semibold text-[#006cb5] shadow-sm cursor-default">Bildirimler</div>
                 </div>
                 {/* Content */}
@@ -321,8 +481,8 @@ export default function Header() {
                 </div>
                 {/* Footer */}
                 <div className="p-3 flex gap-2 bg-white relative z-10 border-t border-gray-100">
-                  <button onClick={markNotificationsAsRead} className="flex-1 py-2.5 bg-[#f8f9fa] hover:bg-[#e2e6ea] text-[#adb5bd] text-[13px] font-semibold rounded-[6px] transition-colors">Tümünü Okundu İşaretle</button>
-                  <button onClick={() => { navigate('/dashboard'); setActiveDropdown(null); }} className="flex-1 py-2.5 bg-[#e9ecef] hover:bg-[#dde2e6] text-[#003d66] text-[13px] font-semibold rounded-[6px] transition-colors">Kapat</button>
+                  <button onClick={markNotificationsAsRead} className="flex-1 py-2.5 bg-[#e6f2f9] hover:bg-[#cce5f3] text-[#006cb5] text-[13px] font-semibold rounded-[6px] transition-colors">Tümünü Okundu İşaretle</button>
+                  <button onClick={(e) => { e.stopPropagation(); setActiveDropdown(null); }} className="flex-1 py-2.5 bg-[#e9ecef] hover:bg-[#dde2e6] text-[#003d66] text-[13px] font-semibold rounded-[6px] transition-colors">Kapat</button>
                 </div>
               </div>
             )}
@@ -385,7 +545,10 @@ export default function Header() {
                 <div className="absolute -top-[7px] right-[20px] w-4 h-4 bg-white rotate-45 border-l border-t border-gray-100"></div>
                 
                 {/* Profile Info */}
-                <div className="flex items-center gap-3 mb-5 cursor-pointer group">
+                <div 
+                  className="flex items-center gap-3 mb-5 cursor-pointer group"
+                  onClick={() => { setIsProfileModalOpen(true); setActiveDropdown(null); }}
+                >
                   <div className="relative shrink-0">
                     {userInfo?.userpictureurl ? (
                       <img src={userInfo.userpictureurl.replace("https://moodle.argeyazilim.tr", "/api")} alt="Profile" className="w-[42px] h-[42px] rounded-full object-cover" />
@@ -394,10 +557,10 @@ export default function Header() {
                     )}
                   </div>
                   <div className="flex flex-col flex-1 overflow-hidden">
-                    <span className="text-[15px] font-medium text-[#495057] uppercase leading-tight group-hover:text-blue-600 transition-colors truncate">
+                    <span className="text-[15px] font-medium text-[#495057] uppercase leading-tight group-hover:text-[#0074b6] transition-colors truncate">
                       {loading ? "..." : userInfo?.fullname}
                     </span>
-                    <span className="text-[13px] text-gray-400 mt-0.5 font-medium">Profili Görüntüle</span>
+                    <span className="text-[13px] text-[#0074b6] mt-0.5 font-medium group-hover:underline">Profili Görüntüle</span>
                   </div>
                 </div>
 

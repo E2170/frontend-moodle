@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { moodlePost } from "./moodleApi";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 
 import akuzemLogo from "./assets/akuzem-lg.png";
 import ActivityViewer from "./ActivityViewer";
@@ -9,6 +9,8 @@ export default function CourseDetail() {
   const [loading, setLoading] = useState(true);
   const { courseId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialCmid = searchParams.get("cmid");
 
   // Durum Yönetimleri
   const [userInfo, setUserInfo] = useState(null);
@@ -97,9 +99,31 @@ export default function CourseDetail() {
         }
 
         if (Array.isArray(contentsData)) {
-          const validSections = contentsData; // Bütün bölümleri al (isim veya visible filtresi olmadan)
+          const validSections = contentsData; 
           setSections(validSections);
-          if (validSections.length > 0) {
+          
+          let targetSection = null;
+          let targetMod = null;
+          
+          if (initialCmid) {
+             for (const sec of validSections) {
+                if (sec.modules) {
+                   const mod = sec.modules.find(m => String(m.id) === String(initialCmid));
+                   if (mod) {
+                      targetSection = sec;
+                      targetMod = mod;
+                      break;
+                   }
+                }
+             }
+          }
+
+          if (targetSection) {
+             setActiveSection(targetSection);
+             if (targetMod && (targetMod.uservisible !== false)) {
+                 setSelectedActivity(targetMod);
+             }
+          } else if (validSections.length > 0) {
             setActiveSection((prev) => {
               if (prev) {
                 const updated = validSections.find((s) => s.id === prev.id);
@@ -329,7 +353,7 @@ export default function CourseDetail() {
             {/* Top Toolbar */}
             <div className="flex justify-between items-center mb-4">
               <button
-                onClick={fetchCourseDetails}
+                onClick={() => window.location.reload()}
                 className="bg-[#e9ecef] hover:bg-[#dde2e6] text-[#495057] text-[13px] font-semibold px-6 py-1.5 rounded transition-colors"
               >
                 Yenile

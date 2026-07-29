@@ -340,7 +340,7 @@ const [quiz, setQuiz] = useState(null);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(null);
+  const [initialTimeLeft, setInitialTimeLeft] = useState(null);
   const [reviewData, setReviewData] = useState(null);
   
   // Pagination states
@@ -351,7 +351,6 @@ const [quiz, setQuiz] = useState(null);
   const navigatingBackRef = useRef(false);
 
   const containerRef = useRef(null);
-  const timerRef = useRef(null);
 
   const [staticFields, setStaticFields] = useState({});
 
@@ -378,7 +377,7 @@ const [quiz, setQuiz] = useState(null);
       });
     });
     setStaticFields(prev => ({ ...prev, ...newStatic }));
-    setLocalAnswers(prev => ({ ...newInitial, ...prev }));
+    localAnswersRef.current = { ...newInitial, ...localAnswersRef.current };
   };
 
   const loadData = async () => {
@@ -429,7 +428,7 @@ const [quiz, setQuiz] = useState(null);
     }
     
     // Sonra öğrencinin cevaplarını ekliyoruz (Aynı name varsa ezer, yani -1 yerine asıl cevabı yazar)
-    for (const [name, value] of Object.entries(localAnswers)) {
+    for (const [name, value] of Object.entries(localAnswersRef.current)) {
         uniqueFields.set(name, value);
     }
     
@@ -445,32 +444,141 @@ const [quiz, setQuiz] = useState(null);
     return formData;
   };
 
-  const [localAnswers, setLocalAnswers] = useState({});
-  const [answeredState, setAnsweredState] = useState({});
+
+  const localAnswersRef = useRef({});
+  const answeredStateRef = useRef({});
 
   const updateAnsweredState = () => {
     if (!containerRef.current) return;
-    const newAnsw = {};
+    const newAnsw = { ...answeredStateRef.current };
     const questionDivs = containerRef.current.querySelectorAll('.question-container');
     questionDivs.forEach((div, i) => {
-      // Find checked radios/checkboxes that are NOT the 'Clear my choice' (-1) option
-      const checkedOptions = Array.from(div.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked'));
-      const hasRealChoice = checkedOptions.some(el => el.value !== "-1");
-      const hasText = !!div.querySelector('input[type="text"]:not([value=""]), textarea:not(:empty)');
+      // Find all input names in this question
+      const inputs = Array.from(div.querySelectorAll('input[type="radio"], input[type="checkbox"], input[type="text"], textarea, select'));
+      let isAnswered = false;
       
-      newAnsw[i] = hasRealChoice || hasText;
+      for (const el of inputs) {
+          const name = el.name || el.id;
+          if (!name) continue;
+          
+          const val = localAnswersRef.current[name];
+          if (val !== undefined && val !== null && val !== "" && val !== "-1") {
+              if (Array.isArray(val) && val.length > 0) {
+                  isAnswered = true;
+                  break;
+              } else if (!Array.isArray(val)) {
+                  isAnswered = true;
+                  break;
+              }
+          }
+      }
+      
+      newAnsw[i] = isAnswered;
+
+      const navBtn = document.getElementById(`nav-btn-${i}`);
+      if (navBtn) {
+          const isCurrent = (i === localQIndex);
+          navBtn.className = `h-10 w-10 rounded-xl font-bold flex items-center justify-center transition-all shadow-sm ${
+              isAnswered ? 'bg-green-500 border-green-600 text-white' : 'bg-yellow-400 border-yellow-500 text-yellow-900'
+          } ${isCurrent ? (isAnswered ? 'ring-4 ring-green-300 scale-110' : 'ring-4 ring-yellow-300 scale-110') : ''}`;
+      }
     });
-    setAnsweredState(newAnsw);
+    answeredStateRef.current = newAnsw;
   };
 
-  // APPLY LOCAL ANSWERS TO DOM
+  // NATIVE DOM EVENT LISTENERS AND STYLING
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const applyStyles = () => {
+        if (!containerRef.current) return;
+        const rows = containerRef.current.querySelectorAll('.r0, .r1, .r2, .r3, .r4, .r5, .r6, .r7, .r8, .r9');
+        rows.forEach(row => {
+            const input = row.querySelector('input[type="radio"], input[type="checkbox"]');
+            const lbl = row.querySelector('label') || row.querySelector('div');
+            
+            if (input && input.checked) {
+                row.style.setProperty("background", "#eff6ff", "important");
+                row.style.setProperty("border-color", "#93c5fd", "important");
+                if (lbl) { 
+                    lbl.style.setProperty("font-weight", "700", "important"); 
+                    lbl.style.setProperty("color", "#1d4ed8", "important"); 
+                }
+            } else {
+                row.style.background = ""; 
+                row.style.borderColor = ""; 
+                if (lbl) { lbl.style.fontWeight = ""; lbl.style.color = ""; }
+            }
+        });
+    };
+
+    applyStyles();
+
+    const container = containerRef.current;
+    
+    const handleChange = (e) => {
+      const target = e.target;
+      if (target.type === 'radio' || target.type === 'checkbox') {
+        const name = target.name || target.id; // Fallback to ID if name is missing
+        if (name) {
+          if (target.type === 'radio') {
+            localAnswersRef.current[name] = target.value;
+          } else {
+            const current = localAnswersRef.current[name];
+            let arr = Array.isArray(current) ? current : (current ? [current] : []);
+            if (target.checked) {
+              localAnswersRef.current[name] = [...new Set([...arr, target.value])];
+            } else {
+              localAnswersRef.current[name] = arr.filter(v => v !== target.value);
+            }
+          }
+        }
+      } else if (target.type === 'text' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+        if (target.name) localAnswersRef.current[target.name] = target.value;
+      }
+      
+      applyStyles();
+      updateAnsweredState();
+    };
+
+    const handleRowClick = (e) => {
+      const row = e.target.closest('.r0, .r1, .r2, .r3, .r4, .r5, .r6, .r7, .r8, .r9');
+      if (!row) return;
+      
+      const input = row.querySelector('input[type="radio"], input[type="checkbox"]');
+      if (!input) return;
+      
+      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'LABEL') {
+        if (input.type === 'radio') {
+          input.checked = true;
+          // Trigger change event manually
+          const event = new Event('change', { bubbles: true });
+          input.dispatchEvent(event);
+        } else if (input.type === 'checkbox') {
+          input.checked = !input.checked;
+          const event = new Event('change', { bubbles: true });
+          input.dispatchEvent(event);
+        }
+      }
+    };
+
+    container.addEventListener('change', handleChange);
+    container.addEventListener('click', handleRowClick);
+    
+    return () => {
+      container.removeEventListener('change', handleChange);
+      container.removeEventListener('click', handleRowClick);
+    };
+  }, [questions]);
+
+  // RESTORE ANSWERS TO DOM ON QUESTION CHANGE
   // Because React dangerouslySetInnerHTML wipes native DOM state on re-render
   useEffect(() => {
     if (!containerRef.current) return;
     const elements = containerRef.current.querySelectorAll('input, select, textarea');
     elements.forEach(el => {
       if (!el.name) return;
-      const val = localAnswers[el.name];
+      const val = localAnswersRef.current[el.name];
       if (val !== undefined) {
         if (el.type === 'radio') {
           el.checked = (el.value === val);
@@ -485,16 +593,38 @@ const [quiz, setQuiz] = useState(null);
         }
       }
     });
+    
+    // Simulate a change event on the container to trigger applyStyles and updateAnsweredState
+    const applyStyles = () => {
+        const rows = containerRef.current.querySelectorAll('.r0, .r1, .r2, .r3, .r4, .r5, .r6, .r7, .r8, .r9');
+        rows.forEach(row => {
+            const input = row.querySelector('input[type="radio"], input[type="checkbox"]');
+            const lbl = row.querySelector('label') || row.querySelector('div');
+            
+            if (input && input.checked) {
+                row.style.setProperty("background", "#eff6ff", "important");
+                row.style.setProperty("border-color", "#93c5fd", "important");
+                if (lbl) { 
+                    lbl.style.setProperty("font-weight", "700", "important"); 
+                    lbl.style.setProperty("color", "#1d4ed8", "important"); 
+                }
+            } else {
+                row.style.background = ""; 
+                row.style.borderColor = ""; 
+                if (lbl) { lbl.style.fontWeight = ""; lbl.style.color = ""; }
+            }
+        });
+    };
+    applyStyles();
     updateAnsweredState();
-  }, [localAnswers, localQIndex, questions]);
+  }, [localQIndex, questions]);
 
   const handleSubmit = async (finish = true) => {
     const formData = collectAnswers();
     setSubmitLoading(true);
     setError(null);
-    if (finish) clearInterval(timerRef.current);
     try {
-      const params = { attemptid: currentAttempt?.id, finishattempt: finish ? 1 : 0, timeup: timeLeft === 0 ? 1 : 0 };
+      const params = { attemptid: currentAttempt?.id, finishattempt: finish ? 1 : 0, timeup: initialTimeLeft === 0 ? 1 : 0 };
       formData.forEach((d, i) => { params[`data[${i}][name]`] = d.name; params[`data[${i}][value]`] = d.value; });
       const resData = await moodlePost(token, "mod_quiz_process_attempt", params);
       if (resData.exception) throw new Error(resData.message || "Gönderim hatası.");
@@ -521,32 +651,6 @@ const [quiz, setQuiz] = useState(null);
   };
 
   useEffect(() => { loadData(); }, [mod.instance, courseId, userId]); // eslint-disable-line
-
-  const handleSubmitRef = useRef();
-  useEffect(() => {
-    handleSubmitRef.current = handleSubmit;
-  });
-
-  useEffect(() => {
-    if (mode !== "taking" || timeLeft === null || timeLeft <= 0) return;
-    timerRef.current = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) { 
-          clearInterval(timerRef.current); 
-          if (handleSubmitRef.current) handleSubmitRef.current(true); 
-          return 0; 
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timerRef.current);
-  }, [mode]); // eslint-disable-line
-
-  const formatTimer = (secs) => {
-    if (secs === null) return null;
-    const m = Math.floor(secs / 60), s = secs % 60;
-    return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
-  };
 
   const fetchPage = async (attemptId, page) => {
     setLoading(true);
@@ -590,55 +694,8 @@ const [quiz, setQuiz] = useState(null);
     setLocalQIndex(index);
   };
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    
-    const handleChange = (e) => {
-      const { name, type, value, checked } = e.target;
-      if (!name) return;
-      if (type === 'radio') {
-        setLocalAnswers(prev => ({ ...prev, [name]: value }));
-      } else if (type === 'checkbox') {
-        setLocalAnswers(prev => {
-          const current = prev[name];
-          let arr = [];
-          if (Array.isArray(current)) arr = current;
-          else if (current) arr = [current];
-          
-          if (checked) {
-            return { ...prev, [name]: [...new Set([...arr, value])] };
-          } else {
-            return { ...prev, [name]: arr.filter(v => v !== value) };
-          }
-        });
-      } else {
-        setLocalAnswers(prev => ({ ...prev, [name]: value }));
-      }
-    };
 
-    const handleRowClick = (e) => {
-      const row = e.target.closest('.r0, .r1, .r2, .r3, .r4, .r5, .r6, .r7, .r8, .r9');
-      if (!row) return;
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
-      
-      const input = row.querySelector('input[type="radio"], input[type="checkbox"]');
-      if (input) {
-        if (!input.checked) {
-          input.click();
-        } else if (input.type === 'checkbox') {
-          input.click();
-        }
-      }
-    };
 
-    container.addEventListener('change', handleChange);
-    container.addEventListener('click', handleRowClick);
-    return () => {
-      container.removeEventListener('change', handleChange);
-      container.removeEventListener('click', handleRowClick);
-    };
-  }, [localQIndex, questions.length, nextPage]);
 
   const startOrResume = async () => {
     setError(null);
@@ -669,7 +726,7 @@ const [quiz, setQuiz] = useState(null);
       if (quiz?.parsedTimeLimit > 0 && attemptObj.timestart) {
         const elapsed = Math.floor(Date.now() / 1000) - attemptObj.timestart;
         const remaining = quiz.parsedTimeLimit - elapsed;
-        setTimeLeft(remaining > 0 ? remaining : 0);
+        setInitialTimeLeft(remaining > 0 ? remaining : 0);
       }
       setMode("taking");
     } catch (e) {
@@ -785,18 +842,16 @@ const [quiz, setQuiz] = useState(null);
 
   // SINAV EKRANI
   if (mode === "taking") {
-    const timerWarning = timeLeft !== null && timeLeft < 300;
     
     const getBoxColor = (idx) => {
       const isCurrent = idx === localQIndex;
-      if (answeredState[idx]) return `bg-green-500 border-green-600 text-white shadow-sm ${isCurrent ? 'ring-4 ring-green-300 scale-110' : ''}`; // Answered
-      return `bg-yellow-400 border-yellow-500 text-yellow-900 shadow-sm ${isCurrent ? 'ring-4 ring-yellow-300 scale-110' : ''}`; // Empty or cleared
+      return `bg-yellow-400 border-yellow-500 text-yellow-900 shadow-sm ${isCurrent ? 'ring-4 ring-yellow-300 scale-110' : ''}`; // Initially assume empty, updated natively
     };
 
     return (
       <div className="fixed inset-0 z-[999] bg-[#f8f9fa] overflow-y-auto p-4 md:p-8 flex items-start justify-center">
         <div className="w-full max-w-5xl flex flex-col md:flex-row gap-5 items-start">
-        <style>{`.qw .que{background:#fff;border-radius:16px;border:1px solid #e5e7eb;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);}.qw .info{display:none;}.qw .qtext{font-size:14px;font-weight:600;color:#374151;margin-bottom:12px;line-height:1.6;}.qw .answer{font-size:13px;color:#495057;}.qw .answer .r0,.qw .answer .r1,.qw .answer .r2,.qw .answer .r3,.qw .answer .r4{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;margin:4px 0;cursor:pointer;border:1px solid #e5e7eb;transition:all .15s;}.qw .answer .r0:hover,.qw .answer .r1:hover,.qw .answer .r2:hover,.qw .answer .r3:hover,.qw .answer .r4:hover{background:#f3f4f6;}.qw .qtype_multichoice_clearchoice { display: none !important; }.qw input[type=radio]:checked + div, .qw input[type=checkbox]:checked + div { font-weight: 700; color: #1d4ed8; }.qw input[type=radio]:checked, .qw input[type=checkbox]:checked { accent-color: #1d4ed8; transform: scale(1.1); }.qw input[type=radio],.qw input[type=checkbox]{width:16px;height:16px;cursor:pointer;}.qw input[type=text],.qw textarea{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;outline:none;}.qw input[type=text]:focus,.qw textarea:focus{border-color:#495057;}.qw label{cursor:pointer;flex:1;}.qw .ablock{margin-top:12px;}.qw select{border:1px solid #d1d5db;border-radius:8px;padding:6px 10px;font-size:13px;}`}</style>
+        <style>{`.qw .que{background:#fff;border-radius:16px;border:1px solid #e5e7eb;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);}.qw .info{display:none;}.qw .qtext{font-size:14px;font-weight:600;color:#374151;margin-bottom:12px;line-height:1.6;}.qw .answer{font-size:13px;color:#495057;}.qw .answer .r0,.qw .answer .r1,.qw .answer .r2,.qw .answer .r3,.qw .answer .r4{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;margin:4px 0;cursor:pointer;border:1px solid #e5e7eb;transition:all .15s;}.qw .answer .r0:hover,.qw .answer .r1:hover,.qw .answer .r2:hover,.qw .answer .r3:hover,.qw .answer .r4:hover{background:#f3f4f6;}.qw .answer .r0:has(input:checked),.qw .answer .r1:has(input:checked),.qw .answer .r2:has(input:checked),.qw .answer .r3:has(input:checked),.qw .answer .r4:has(input:checked){background:#eff6ff !important;border-color:#93c5fd !important;}.qw .qtype_multichoice_clearchoice { display: none !important; }.qw input[type=radio]:checked + div, .qw input[type=checkbox]:checked + div, .qw input[type=radio]:checked + label, .qw input[type=checkbox]:checked + label { font-weight: 700; color: #1d4ed8; }.qw input[type=radio]:checked, .qw input[type=checkbox]:checked { accent-color: #1d4ed8; transform: scale(1.1); }.qw input[type=radio],.qw input[type=checkbox]{width:16px;height:16px;cursor:pointer;}.qw input[type=text],.qw textarea{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;outline:none;}.qw input[type=text]:focus,.qw textarea:focus{border-color:#495057;}.qw label{cursor:pointer;flex:1;}.qw .ablock{margin-top:12px;}.qw select{border:1px solid #d1d5db;border-radius:8px;padding:6px 10px;font-size:13px;}`}</style>
         
         <div className="flex-1 w-full space-y-4">
           <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-5 py-3 shadow-sm sticky top-0 z-20">
@@ -805,10 +860,8 @@ const [quiz, setQuiz] = useState(null);
               <span className="text-[14px] font-bold text-[#495057] truncate max-w-[200px]">{mod.name}</span>
             </div>
             <div className="flex items-center gap-3">
-              {timeLeft !== null && (
-                <div className={`text-[13px] font-bold px-3 py-1.5 rounded-xl border ${timerWarning ? "text-red-600 bg-red-50 border-red-200 animate-pulse" : "text-[#495057] bg-gray-50 border-gray-200"}`}>
-                  ⏱️ {formatTimer(timeLeft)}
-                </div>
+              {initialTimeLeft !== null && (
+                <QuizTimer initialTimeLeft={initialTimeLeft} onExpire={() => handleSubmit(true)} />
               )}
               <div className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-xl border border-blue-200 text-[13px] font-bold">
                 Soru {localQIndex + 1} / {questions.length}
@@ -863,7 +916,7 @@ const [quiz, setQuiz] = useState(null);
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm sticky top-0 z-20">
             <div className="flex flex-wrap gap-2">
                {questions.map((q, i) => (
-                   <button key={i} onClick={() => goToQuestion(i)} 
+                   <button key={i} id={`nav-btn-${i}`} onClick={() => goToQuestion(i)} 
                      className={`w-[38px] h-[38px] flex items-center justify-center rounded-xl font-bold text-[13px] border transition-all hover:-translate-y-0.5 ${getBoxColor(i)}`}>
                      {i + 1}
                    </button>
@@ -2122,6 +2175,43 @@ function GenericViewer({ mod }) {
 // ─────────────────────────────────────────────
 // MAIN EXPORT
 // ─────────────────────────────────────────────
+const formatTimer = (secs) => {
+  if (secs === null) return "";
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  if (h > 0) return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
+
+const QuizTimer = ({ initialTimeLeft, onExpire }) => {
+  const [timeLeft, setTimeLeft] = useState(initialTimeLeft);
+  const timerWarning = timeLeft !== null && timeLeft < 300;
+
+  useEffect(() => {
+    if (timeLeft === null || timeLeft <= 0) return;
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          onExpire();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [timeLeft, onExpire]);
+
+  if (timeLeft === null) return null;
+
+  return (
+    <div className={`text-[13px] font-bold px-3 py-1.5 rounded-xl border ${timerWarning ? "text-red-600 bg-red-50 border-red-200 animate-pulse" : "text-[#495057] bg-gray-50 border-gray-200"}`}>
+      ⏱️ {formatTimer(timeLeft)}
+    </div>
+  );
+};
+
 export default function ActivityViewer({ mod, token, userId, courseId, onBack }) {
   
   const renderViewer = () => {

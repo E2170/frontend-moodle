@@ -115,14 +115,19 @@ export default function Messages() {
     setOtherUser(peer || null);
     setOtherUserEmail("Yükleniyor...");
     
-    // Fetch email of the peer
+    // Fetch profile of the peer
     if (peer && peer.id) {
       moodlePost(token, "core_user_get_users_by_field", {
         field: "id",
         "values[0]": peer.id
       }).then(users => {
-        if (users && users.length > 0 && users[0].email) {
-          setOtherUserEmail(users[0].email);
+        if (users && users.length > 0) {
+          setOtherUser(prev => ({ ...prev, ...users[0] }));
+          if (users[0].email) {
+            setOtherUserEmail(users[0].email);
+          } else {
+            setOtherUserEmail("Gizli / Bulunamadı");
+          }
         } else {
           setOtherUserEmail("Gizli / Bulunamadı");
         }
@@ -496,7 +501,11 @@ export default function Messages() {
                     
                     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
                       <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Durum</div>
-                      <div className="text-[13px] font-semibold text-gray-700">Aktif Öğrenci</div>
+                      <div className="text-[13px] font-semibold text-gray-700 capitalize">
+                        {otherUser?.roles && otherUser.roles.length > 0 
+                          ? otherUser.roles[0].shortname 
+                          : "Sistem Kullanıcısı"}
+                      </div>
                     </div>
                   </div>
                 </div>

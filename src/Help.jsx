@@ -47,9 +47,10 @@ export default function Help() {
       <main className="w-full max-w-[1000px] mx-auto px-4 sm:px-6 py-8 flex-1">
         
         {/* Header Section */}
-        <div className="bg-gradient-to-br from-[#0056b3] to-[#003d82] rounded-[16px] p-8 sm:p-12 text-center shadow-lg mb-8 text-white">
-          <h1 className="text-3xl font-bold mb-4">Size nasıl yardımcı olabiliriz?</h1>
-          <p className="text-blue-100 text-[15px] max-w-xl mx-auto mb-8">
+        <div className="bg-[#f0f7ff] rounded-[16px] p-8 sm:p-12 text-center border border-[#e0effc] mb-8 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-40 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+          <h1 className="text-3xl font-bold mb-4 text-[#003d82]">Size nasıl yardımcı olabiliriz?</h1>
+          <p className="text-[#334155] text-[15px] font-medium max-w-xl mx-auto mb-8">
             Uzaktan eğitim sistemiyle ilgili sıkça sorulan sorulara göz atabilir veya aradığınız konuyu hızlıca bulabilirsiniz.
           </p>
           <div className="relative max-w-2xl mx-auto">
@@ -57,7 +58,7 @@ export default function Help() {
             <input 
               type="text" 
               placeholder="Sorunuzu buraya yazın (Örn: Sınav, Canlı Ders, Şifre)..." 
-              className="w-full pl-12 pr-4 py-4 rounded-full text-[#212529] focus:outline-none focus:ring-4 focus:ring-blue-300 transition-shadow text-[15px] shadow-sm"
+              className="w-full pl-12 pr-4 py-4 rounded-full text-[#212529] focus:outline-none focus:ring-4 focus:ring-[#66b0e3] transition-shadow text-[15px] shadow-sm font-medium border border-[#cbd5e1]"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -77,7 +78,7 @@ export default function Help() {
                       onClick={() => setOpenFaq(openFaq === faq.id ? null : faq.id)}
                       className="w-full text-left px-6 py-5 flex items-center justify-between focus:outline-none hover:bg-gray-50 transition-colors"
                     >
-                      <span className="font-medium text-[15px] text-[#212529] pr-8">{faq.question}</span>
+                      <span className="font-bold text-[15px] text-[#212529] pr-8">{faq.question}</span>
                       <svg className={`w-5 h-5 text-gray-400 transform transition-transform duration-200 ${openFaq === faq.id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
                     <div 
@@ -100,7 +101,7 @@ export default function Help() {
           {/* Contact Support Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white border border-[#e9ecef] rounded-[12px] p-6 shadow-sm sticky top-6">
-              <div className="w-12 h-12 bg-blue-50 text-[#0056b3] rounded-full flex items-center justify-center mb-4">
+              <div className="w-12 h-12 bg-[#e6f2f9] text-[#006cb5] rounded-full flex items-center justify-center mb-4">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
               </div>
               <h3 className="text-[18px] font-bold text-[#212529] mb-2">Destek İhtiyacınız mı var?</h3>
@@ -109,13 +110,17 @@ export default function Help() {
               </p>
               
               <div className="space-y-4">
-                <a href="#" className="flex items-center gap-3 text-[14px] font-medium text-[#0056b3] hover:text-[#003d82] transition-colors p-3 bg-blue-50 rounded-[8px]">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                <a href="#" className="flex items-center gap-3 text-[14px] font-semibold text-[#006cb5] hover:text-[#004e82] transition-colors p-3 bg-[#f5f9fc] rounded-[8px] hover:bg-[#e6f2f9]">
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                   destek@akuzem.edu.tr
                 </a>
-                <a href="#" className="flex items-center gap-3 text-[14px] font-medium text-[#0056b3] hover:text-[#003d82] transition-colors p-3 bg-blue-50 rounded-[8px]">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
+                <a href="#" className="flex items-center gap-3 text-[14px] font-semibold text-[#006cb5] hover:text-[#004e82] transition-colors p-3 bg-[#f5f9fc] rounded-[8px] hover:bg-[#e6f2f9]">
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
                   0(850) 123 45 67
+                </a>
+                <a href="https://yardim.advancity.com.tr/egitim365/ogrenci-klavuzu-web" target="_blank" rel="noreferrer" className="flex items-center gap-3 text-[14px] font-semibold text-[#006cb5] hover:text-[#004e82] transition-colors p-3 bg-[#f5f9fc] rounded-[8px] hover:bg-[#e6f2f9]">
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                  Öğrenci Kılavuzu
                 </a>
               </div>
             </div>

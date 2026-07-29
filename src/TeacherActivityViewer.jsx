@@ -304,6 +304,12 @@ function TeacherQuizViewer({ mod, token, courseId }) {
 
   const handlePublish = async () => {
     setIsPublishConfirmOpen(false);
+    
+    if (participated.length === 0) {
+      setPublishStatus({ type: 'error', text: "Hata: Sınava giren öğrenci yok, sonuçlar yayımlanamaz." });
+      return;
+    }
+
     setPublishing(true);
     setPublishStatus(null);
     try {
