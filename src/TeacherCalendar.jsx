@@ -62,15 +62,28 @@ export default function TeacherCalendar() {
     }
 
     try {
-      const eventsData = await moodlePost(token, "core_calendar_get_action_events_by_timesort");
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1;
+      const eventsData = await moodlePost(token, "core_calendar_get_calendar_monthly_view", {
+        year: year,
+        month: month
+      });
 
-      if (eventsData && Array.isArray(eventsData.events)) {
-        setEvents(eventsData.events);
+      if (eventsData && Array.isArray(eventsData.weeks)) {
+        let allEvents = [];
+        eventsData.weeks.forEach(week => {
+          week.days.forEach(day => {
+            if (day.events && day.events.length > 0) {
+              allEvents = [...allEvents, ...day.events];
+            }
+          });
+        });
+        setEvents(allEvents);
       }
     } catch (error) {
       console.error("Takvim verileri entegrasyon hatası:", error);
     }
-  }, [navigate]);
+  }, [navigate, currentDate]);
 
   useEffect(() => {
      
@@ -99,39 +112,31 @@ export default function TeacherCalendar() {
 
   const formatMonthYear = (date) => {
     const months = [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December"
+      "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+      "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
     ];
     return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
   };
 
-  const hours = Array.from({ length: 17 }, (_, i) => {
-    const h = i;
-    const ampm = h < 12 ? "AM" : "PM";
-    const hour = h % 12 === 0 ? 12 : h % 12;
-    return `${hour}:00 ${ampm}`;
+  const hoursList = Array.from({ length: 16 }, (_, i) => i + 8); // 08:00 to 23:00
+  const hours = hoursList.map(h => {
+    const hour = h.toString().padStart(2, "0");
+    return `${hour}:00`;
   });
-
-  const getEventsForSlot = (day, hourString) => {
-    const slotHour = parseInt(hourString.split(":")[0]);
-    return events.filter((event) => {
-      if (!event.timesort) return false;
-      const eventDate = new Date(event.timesort * 1000);
-      const isSameDay = eventDate.toDateString() === day.fullDate.toDateString();
-      const isSameHour = eventDate.getHours() === slotHour;
-      const isFilterActive = filters[event.modulename] !== false;
-      return isSameDay && isSameHour && isFilterActive;
-    });
-  };
 
   const getEventColorClass = (modname) => {
     switch (modname) {
       case "quiz": return "bg-[#9c27b0] text-white";
       case "assign": return "bg-[#4caf50] text-white";
-      case "bigbluebuttonbn": return "bg-[#2196f3] text-white";
-      default: return "bg-gray-500 text-white";
+      case "bigbluebuttonbn":
+      case "zoom":
+      case "perculus": return "bg-[#2196f3] text-white";
+      case "forum": return "bg-[#f44336] text-white";
+      default: return "bg-[#ff9800] text-white";
     }
   };
+
+
 
   return (
     <div className="h-screen flex flex-col bg-[#f8fafc] font-sans text-[#495057] antialiased overflow-hidden">
@@ -148,13 +153,13 @@ export default function TeacherCalendar() {
           {/* Mini Calendar */}
           <div className="p-4 border-b border-[#3e445a] shrink-0">
             <div className="flex items-center justify-between mb-4 text-[13px] font-semibold">
-              <button className="text-gray-400 hover:text-white">&lt;</button>
+              <button className="text-gray-400 hover:text-white" onClick={handlePrevWeek}>&lt;</button>
               <div className="flex items-center gap-1">
-                <span>July</span>
+                <span>{currentDate.toLocaleDateString('tr-TR', { month: 'long' })}</span>
                 <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                 <span>{currentDate.getFullYear()}</span>
               </div>
-              <button className="text-gray-400 hover:text-white">&gt;</button>
+              <button className="text-gray-400 hover:text-white" onClick={handleNextWeek}>&gt;</button>
             </div>
             
             <div className="grid grid-cols-7 gap-1 text-center text-[12px]">
@@ -355,27 +360,44 @@ export default function TeacherCalendar() {
                     key={colIdx}
                     className={`border-r border-gray-200 last:border-r-0 h-full relative ${day.isCurrent ? "bg-[#eef5fd]" : ""}`}
                   >
-                    {/* Eğer "Bugün" sütunuysa anlık zaman çizgisini göster (Mock olarak saat 10:30) */}
                     {day.isCurrent && (
-                      <div className="absolute left-0 right-0 h-[2px] bg-[#4caf50] z-20" style={{ top: "420px" }}></div>
+                      <div className="absolute left-0 right-0 h-[2px] bg-[#4caf50] z-20" style={{ top: `${(new Date().getHours() - 8) * 48 + (new Date().getMinutes() / 60) * 48}px` }}></div>
                     )}
                     
-                    {hours.map((hour) => {
-                      const slotEvents = getEventsForSlot(day, hour);
-                      return slotEvents.map((event) => (
-                        <div
-                          key={event.id}
-                          title={event.name}
-                          className={`absolute left-1 right-1 p-1 rounded text-[10px] font-bold shadow-sm truncate z-20 cursor-pointer ${getEventColorClass(event.modulename)}`}
-                          style={{
-                            top: `${hours.indexOf(hour) * 48 + 4}px`,
-                            height: "40px",
-                          }}
-                        >
-                          {event.name}
-                        </div>
-                      ));
-                    })}
+                    {events
+                      .filter((e) => {
+                        const eventDate = new Date(e.timesort * 1000);
+                        const isSameDay = 
+                          eventDate.getDate() === day.fullDate.getDate() &&
+                          eventDate.getMonth() === day.fullDate.getMonth() &&
+                          eventDate.getFullYear() === day.fullDate.getFullYear();
+                        
+                        // Map moodle module name to our filter keys
+                        let filterKey = e.modulename;
+                        if (['bigbluebuttonbn', 'zoom', 'perculus'].includes(e.modulename)) filterKey = 'sanalSinif';
+                        
+                        return isSameDay && filters[filterKey] !== false;
+                      })
+                      .map((e, eIdx) => {
+                        const eventDate = new Date(e.timesort * 1000);
+                        const startHour = eventDate.getHours();
+                        if (startHour < 8 || startHour > 23) return null; // out of visible bounds
+                        const startMinutes = eventDate.getMinutes();
+                        const topPos = (startHour - 8) * 48 + (startMinutes / 60) * 48;
+                        const bgColor = getEventColorClass(e.modulename);
+                        
+                        return (
+                          <div
+                            key={eIdx}
+                            className={`absolute left-1 right-1 p-2 rounded-[6px] shadow-sm overflow-hidden z-10 ${bgColor}`}
+                            style={{ top: `${topPos}px`, minHeight: "40px" }}
+                            title={e.name}
+                          >
+                            <div className="text-[10px] font-bold opacity-90 truncate leading-none mb-1">{e.course?.fullname || ""}</div>
+                            <div className="text-[11px] font-semibold leading-tight truncate">{e.name}</div>
+                          </div>
+                        );
+                      })}
                   </div>
                 ))}
               </div>

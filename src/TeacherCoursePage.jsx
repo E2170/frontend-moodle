@@ -115,7 +115,7 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
     externalurl: "",
     record: "1",
     // Assign fields
-    allowsubmissionsfromdate: "",
+    allowsubmissionsfromdate: localISOTime,
     duedate: "",
     maxfiles: "5",
     maxsizebytes: "10485760", // 10MB
