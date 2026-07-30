@@ -1,7 +1,9 @@
+import { useLanguage } from "./LanguageContext";
 import { useEffect, useState, useCallback } from "react";
-import { moodlePost } from "./moodleApi";
+import { moodlePost, extractCourseImage } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 export default function MyCourses() {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -9,6 +11,8 @@ export default function MyCourses() {
   
   // Filtre durumları
   const [searchTerm, setSearchTerm] = useState("");
+  const [termFilter, setTermFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const fetchCoursesData = useCallback(async () => {
     const token = localStorage.getItem("moodle_token");
@@ -23,44 +27,15 @@ export default function MyCourses() {
 
       if (userData && userData.userid) {
         
-
         // Kullanıcının kayıtlı olduğu dersleri al
         const coursesData = await moodlePost(token, "core_enrol_get_users_courses", { userid: userData.userid });
 
         if (coursesData && Array.isArray(coursesData)) {
-          const enrichedCourses = await Promise.all(coursesData.map(async (course) => {
-            try {
-              const contentsRes = await moodlePost(token, "core_course_get_contents", {
-                courseid: course.id
-              });
-              if (Array.isArray(contentsRes)) {
-                let totalActivities = 0;
-                let completedActivities = 0;
-                contentsRes.forEach(sec => {
-                  if (sec.modules) {
-                    sec.modules.forEach(mod => {
-                      if (mod.completion > 0) {
-                        totalActivities++;
-                        if (mod.completiondata && (mod.completiondata.state == 1 || mod.completiondata.state == 2 || mod.completiondata.state == 3)) {
-                          completedActivities++;
-                        }
-                      }
-                    });
-                  }
-                });
-                if (totalActivities > 0) {
-                  course.calculatedProgress = Math.round((completedActivities / totalActivities) * 100);
-                } else {
-                  course.calculatedProgress = course.progress || 0;
-                }
-              } else {
-                course.calculatedProgress = course.progress || 0;
-              }
-            } catch (e) {
-              course.calculatedProgress = course.progress || 0;
-            }
+          const enrichedCourses = coursesData.map((course) => {
+            course.calculatedProgress = course.progress || 0;
+            course.courseimage = extractCourseImage(course, token);
             return course;
-          }));
+          });
           setCourses(enrichedCourses);
         } else {
           setCourses([]);
@@ -77,10 +52,33 @@ export default function MyCourses() {
     fetchCoursesData();
   }, [fetchCoursesData]);
 
-  
-  const filteredCourses = courses.filter((c) =>
-    c.fullname.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const extractCourseTerm = (course) => {
+    const match = course.fullname.match(/\([^|]+\|([^)]+)\)/);
+    if (match && match[1]) {
+        return match[1].trim();
+    }
+    if (course.startdate) {
+        return new Date(course.startdate * 1000).getFullYear().toString();
+    }
+    return "Bilinmiyor";
+  };
+
+  const getCourseStatus = (course) => {
+    const now = Date.now() / 1000;
+    if (course.enddate === 0 || course.enddate > now) {
+        return "Aktif";
+    }
+    return "Pasif";
+  };
+
+  const availableTerms = Array.from(new Set(courses.map(c => extractCourseTerm(c)))).sort().reverse();
+
+  const filteredCourses = courses.filter((c) => {
+    const matchName = c.fullname.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchTerm = termFilter === "" || extractCourseTerm(c) === termFilter;
+    const matchStatus = statusFilter === "" || getCourseStatus(c) === statusFilter;
+    return matchName && matchTerm && matchStatus;
+  });
 
   return (
     <div className="min-h-screen bg-[#fcfcfc] font-sans text-[#495057] antialiased flex flex-col">
@@ -88,11 +86,7 @@ export default function MyCourses() {
       {/* Ana İçerik */}
       <main className="max-w-[1200px] w-full mx-auto px-4 py-6 flex-1">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-[24px] font-medium text-[#212529]">Derslerim</h2>
-          <button className="bg-[#1e88e5] hover:bg-[#1565c0] text-white px-4 py-2 rounded text-[14px] font-medium transition-colors flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
-            Filtrele
-          </button>
+          <h2 className="text-[24px] font-medium text-[#212529]">{t.myCourses}</h2>
         </div>
 
         {/* Filtre Alanı */}
@@ -101,38 +95,45 @@ export default function MyCourses() {
             <label className="block text-[13px] font-medium text-[#495057] mb-1">Ders İsmi <span className="text-red-500">*</span></label>
             <input 
               type="text" 
-              placeholder="Ders İsmi" 
+              placeholder={t.courseNameLabel} 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full border border-[#ced4da] rounded px-3 py-2 text-[14px] focus:outline-none focus:border-[#1e88e5] transition-colors"
             />
           </div>
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-[13px] font-medium text-[#495057] mb-1">Dönem</label>
-            <select className="w-full border border-[#ced4da] rounded px-3 py-2 text-[14px] focus:outline-none focus:border-[#1e88e5] text-[#495057] bg-white appearance-none">
-              <option value="">Dönem</option>
+            <label className="block text-[13px] font-medium text-[#495057] mb-1">{t.term}</label>
+            <select 
+              value={termFilter}
+              onChange={(e) => setTermFilter(e.target.value)}
+              className="w-full border border-[#ced4da] rounded px-3 py-2 text-[14px] focus:outline-none focus:border-[#1e88e5] text-[#495057] bg-white appearance-none"
+            >
+              <option value="">Tümü</option>
+              {availableTerms.map(term => (
+                <option key={term} value={term}>{term}</option>
+              ))}
             </select>
           </div>
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-[13px] font-medium text-[#495057] mb-1">Ders Durumu</label>
-            <select className="w-full border border-[#ced4da] rounded px-3 py-2 text-[14px] focus:outline-none focus:border-[#1e88e5] text-[#495057] bg-white appearance-none">
-              <option value="">Ders Durumu</option>
+            <label className="block text-[13px] font-medium text-[#495057] mb-1">{t.courseStatus}</label>
+            <select 
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full border border-[#ced4da] rounded px-3 py-2 text-[14px] focus:outline-none focus:border-[#1e88e5] text-[#495057] bg-white appearance-none"
+            >
+              <option value="">Tümü</option>
+              <option value="Aktif">{t.active}</option>
+              <option value="Pasif">{t.passive}</option>
             </select>
-          </div>
-          <div className="mt-4 w-full flex justify-end">
-             <button className="bg-[#1e88e5] hover:bg-[#1565c0] text-white px-5 py-2 rounded text-[14px] font-medium transition-colors flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                Ara
-              </button>
           </div>
         </div>
 
-        <h3 className="text-[16px] font-medium text-[#212529] mb-4">Dersler</h3>
+        <h3 className="text-[16px] font-medium text-[#212529] mb-4">{t.coursesList}</h3>
 
         {loading ? (
-          <div className="text-center py-10 text-gray-500">Yükleniyor...</div>
+          <div className="text-center py-10 text-gray-500">{t.loadingData}</div>
         ) : filteredCourses.length === 0 ? (
-          <div className="text-center py-10 text-gray-500 bg-white border border-[#e9ecef] rounded">Bulunamadı.</div>
+          <div className="text-center py-10 text-gray-500 bg-white border border-[#e9ecef] rounded">{t.notFound}</div>
         ) : (
           <div className="flex flex-col gap-3">
             {filteredCourses.map(course => (
@@ -141,8 +142,12 @@ export default function MyCourses() {
                 onClick={() => navigate(`/course/${course.id}`)}
                 className="bg-white border border-l-4 border-l-[#1e88e5] border-[#e9ecef] rounded p-4 flex flex-col md:flex-row gap-4 items-center shadow-sm hover:shadow-md transition-shadow cursor-pointer"
               >
-                <div className="w-16 h-16 bg-[#f1f3f5] rounded flex items-center justify-center shrink-0">
-                  <svg className="w-8 h-8 text-[#adb5bd]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                <div className="w-16 h-16 bg-[#f1f3f5] rounded overflow-hidden flex items-center justify-center shrink-0">
+                  {course.courseimage ? (
+                    <img src={course.courseimage} alt={course.shortname} className="w-full h-full object-cover" />
+                  ) : (
+                    <svg className="w-8 h-8 text-[#adb5bd]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                  )}
                 </div>
                 
                 <div className="flex-1">

@@ -1,3 +1,4 @@
+import { useLanguage } from "./LanguageContext";
 import { useState } from "react";
 
 export function AlmsQuizActivityModal({ onClose, onSaveActivity }) {
@@ -230,7 +231,7 @@ export function AlmsSessionWizard({ onClose, onComplete, initialName }) {
             {step === 2 && (
               <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-300">
                  <div className="grid grid-cols-3 gap-5 mb-6">
-                    {["Anahtar Kelime Seçiniz", "Kategori Seçiniz", "Konu Başlığı Seçiniz", "Ana Ders Seçiniz", "Ders Seçiniz", "Dönem Seçiniz"].map(label => (
+                    {["Anahtar Kelime Seçiniz", "Kategori Seçiniz", "Konu Başlığı Seçiniz", "Ana Ders Seçiniz", "Ders Seçiniz", t.selectTerm].map(label => (
                       <div key={label}>
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{label}</label>
                         <select className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm outline-none bg-white text-gray-600 focus:border-blue-500 transition-colors">

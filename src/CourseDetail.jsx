@@ -1,3 +1,4 @@
+import { useLanguage } from "./LanguageContext";
 import { useEffect, useState, useCallback } from "react";
 import { moodlePost } from "./moodleApi";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -6,6 +7,7 @@ import akuzemLogo from "./assets/akuzem-lg.png";
 import ActivityViewer from "./ActivityViewer";
 
 export default function CourseDetail() {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const { courseId } = useParams();
   const navigate = useNavigate();
@@ -284,7 +286,7 @@ export default function CourseDetail() {
         <div className="w-[380px] bg-white border-r border-gray-200 flex flex-col shrink-0 overflow-y-auto">
           {/* Başlık ve Tamamlama Özeti */}
           <div className="flex items-center justify-between p-4 border-b border-gray-100 sticky top-0 bg-white z-10 shadow-sm">
-            <span className="text-[16px] text-[#495057] font-bold">Ders Programı</span>
+            <span className="text-[16px] text-[#495057] font-bold">{t.courseSchedule}</span>
             <div className="flex items-center justify-center w-[29px] h-[29px] rounded-full border-2 border-gray-300 text-[12px] font-semibold">
               <span className="text-gray-500">{assignmentStats.completed}</span>
               <span className="text-gray-400 mx-0.5">/</span>
@@ -535,7 +537,7 @@ export default function CourseDetail() {
             {/* Duyurular Kartı */}
             <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm min-h-[150px]">
               <div className="flex items-center gap-2 mb-4 cursor-pointer">
-                <span className="text-[15px] font-bold text-[#495057]">Duyurular</span>
+                <span className="text-[15px] font-bold text-[#495057]">{t.announcements}</span>
                 <span className="bg-gray-200 text-gray-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
                   {announcements.length}
                 </span>
@@ -566,7 +568,7 @@ export default function CourseDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <h3 className="font-bold text-gray-800 text-lg">Mesaj Gönder</h3>
+              <h3 className="font-bold text-gray-800 text-lg">{t.sendMessage}</h3>
               <button onClick={() => setMsgModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
                 ✕
               </button>

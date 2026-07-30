@@ -1,4 +1,6 @@
+import { useLanguage } from "./LanguageContext";
 export default function ActivityPanel({ onClose }) {
+  const { t } = useLanguage();
   const activities = [
     { id: 'forum', label: 'Forum', icon: '💬' },
     { id: 'assign', label: 'Ödev', icon: '📖' },
@@ -10,7 +12,7 @@ export default function ActivityPanel({ onClose }) {
     <div className="fixed inset-0 bg-black/40 z-100 flex justify-end">
       <div className="w-full max-w-lg bg-white h-full shadow-2xl p-6 overflow-y-auto animate-in slide-in-from-right">
         <div className="flex justify-between items-center mb-8">
-          <h2 className="text-xl font-bold">Aktivite Ekle</h2>
+          <h2 className="text-xl font-bold">{t.addActivity}</h2>
           <button onClick={onClose} className="text-2xl">×</button>
         </div>
 

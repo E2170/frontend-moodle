@@ -1,10 +1,12 @@
+import { useLanguage } from "./LanguageContext";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import { moodlePost } from "./moodleApi";
+import { moodlePost, extractCourseImage } from "./moodleApi";
 import LoadingSpinner from "./components/LoadingSpinner";
 
 export default function TeacherReports() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { userInfo } = useAuth();
   const [courses, setCourses] = useState([]);
@@ -28,7 +30,10 @@ export default function TeacherReports() {
     try {
       const res = await moodlePost(token, "core_enrol_get_users_courses", { userid: userInfo.userid });
       if (Array.isArray(res)) {
-        setCourses(res);
+        const coursesWithImages = res.map(course => {
+          return { ...course, courseimage: extractCourseImage(course, token) };
+        });
+        setCourses(coursesWithImages);
       }
     } catch (error) {
       console.error("Ders verisi hatası:", error);
@@ -175,7 +180,7 @@ export default function TeacherReports() {
               </button>
             )}
             <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
-              {selectedCourse ? `${selectedCourse.fullname} Raporları` : "Ders Raporları"}
+              {selectedCourse ? `${selectedCourse.fullname} Raporları` : t.courseReports}
             </h1>
           </div>
         </div>
@@ -208,7 +213,7 @@ export default function TeacherReports() {
                     <tr className="bg-gray-50 border-b border-gray-100">
                       <th className="p-4 text-sm font-semibold text-gray-600">Öğrenci Adı</th>
                       <th className="p-4 text-sm font-semibold text-gray-600">E-posta</th>
-                      <th className="p-4 text-sm font-semibold text-gray-600">Derse Son Erişim</th>
+                      <th className="p-4 text-sm font-semibold text-gray-600">{t.lastAccessToCourse}</th>
                       <th className="p-4 text-sm font-semibold text-gray-600 text-right">İşlem</th>
                     </tr>
                   </thead>
@@ -266,12 +271,8 @@ export default function TeacherReports() {
                     <h3 className="font-bold text-gray-800 text-lg mb-1 group-hover:text-blue-600 transition-colors line-clamp-2">{course.fullname}</h3>
                     <p className="text-sm text-gray-500 mb-4">{course.shortname}</p>
                     <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-between">
-                      <span className="text-xs font-semibold px-2.5 py-1 bg-red-50 text-red-600 rounded-full">
-                        Raporlama
-                      </span>
-                      <span className="text-sm font-semibold text-blue-600 group-hover:translate-x-1 transition-transform flex items-center gap-1">
-                        Raporu Gör
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                      <span className="text-xs font-semibold px-2.5 py-1 bg-red-50 text-red-600 rounded-full">{t.reporting}</span>
+                      <span className="text-sm font-semibold text-blue-600 group-hover:translate-x-1 transition-transform flex items-center gap-1">{t.viewReport}<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
                       </span>
                     </div>
                   </div>
@@ -344,7 +345,7 @@ export default function TeacherReports() {
                           <table className="w-full text-left">
                             <thead>
                               <tr className="bg-gray-50 border-b border-gray-100">
-                                <th className="p-4 text-sm font-semibold text-gray-600">Aktivite / Modül Tipi</th>
+                                <th className="p-4 text-sm font-semibold text-gray-600">{t.activityType}</th>
                                 <th className="p-4 text-sm font-semibold text-gray-600 text-right">Durum</th>
                               </tr>
                             </thead>
@@ -388,7 +389,7 @@ export default function TeacherReports() {
                             <thead>
                               <tr className="bg-gray-50 border-b border-gray-100">
                                 <th className="p-4 text-sm font-semibold text-gray-600">Öğe Adı</th>
-                                <th className="p-4 text-sm font-semibold text-gray-600">Alınan Not</th>
+                                <th className="p-4 text-sm font-semibold text-gray-600">{t.gradeReceived}</th>
                                 <th className="p-4 text-sm font-semibold text-gray-600 text-right">Durum</th>
                               </tr>
                             </thead>

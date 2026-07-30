@@ -1,3 +1,4 @@
+import { useLanguage } from "./LanguageContext";
 import { useEffect, useState, useCallback } from "react";
 import { useLocation, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { showAlert } from "./AlertModal";
@@ -90,7 +91,7 @@ function YoutubeFormModal({ sectionNum, courseId, token, onClose, onSaved }) {
           </div>
           
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="px-5 py-2 text-gray-600 hover:bg-gray-100 rounded-xl font-bold transition-colors">İptal</button>
+            <button type="button" onClick={onClose} className="px-5 py-2 text-gray-600 hover:bg-gray-100 rounded-xl font-bold transition-colors">{t.cancel}</button>
             <button type="submit" disabled={loading} className="px-5 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold disabled:opacity-50 transition-colors shadow-md shadow-red-200">
               {loading ? "Ekleniyor..." : "Ekle"}
             </button>
@@ -258,7 +259,7 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-            <span className="text-[10px] font-bold uppercase tracking-wider">Kapat</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">{t.close}</span>
           </button>
         </div>
 
@@ -371,12 +372,12 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-1">Ders Başlangıç Zamanı</label>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">{t.courseStartTime}</label>
                           <input type="datetime-local" name="timeopen" value={form.timeopen} onChange={handleChange}
                             className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
                         </div>
                         <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-1">Ders Bitiş Zamanı</label>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">{t.courseEndTime}</label>
                           <input type="datetime-local" name="timeclose" value={form.timeclose} onChange={handleChange}
                             className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
                         </div>
@@ -474,6 +475,7 @@ import { AlmsQuizActivityModal } from "./AlmsQuizFlow";
 // ANA SAYFA
 // ─────────────────────────────────────────────
 export default function TeacherCoursePage() {
+  const { t } = useLanguage();
   const { courseId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -724,7 +726,7 @@ export default function TeacherCoursePage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Sol Panel — Hafta listesi */}
         <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
-          <div className="p-3 text-xs font-bold text-gray-700 border-b border-gray-100 bg-gray-50">Ders Programı</div>
+          <div className="p-3 text-xs font-bold text-gray-700 border-b border-gray-100 bg-gray-50">{t.courseSchedule}</div>
           <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
             {displaySections.map(sec => (
               <div key={sec.id}
@@ -741,7 +743,7 @@ export default function TeacherCoursePage() {
             ))}
           </div>
           <div className="p-3 bg-gray-50 border-t border-gray-200">
-            <div className="text-[10px] font-bold text-gray-500 mb-1">Ders Tamamlama</div>
+            <div className="text-[10px] font-bold text-gray-500 mb-1">{t.courseCompletion}</div>
             <div className="h-1.5 bg-gray-200 rounded-full" />
           </div>
         </aside>
@@ -849,7 +851,7 @@ export default function TeacherCoursePage() {
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-col items-center">
             <div className="flex justify-between items-center mb-3 w-full">
-              <h3 className="text-xs font-bold text-gray-700">Duyurular</h3>
+              <h3 className="text-xs font-bold text-gray-700">{t.announcements}</h3>
               <span className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500 border">{announcements.length}</span>
             </div>
             <button 
@@ -880,7 +882,7 @@ export default function TeacherCoursePage() {
             {/* Header */}
             <div className="h-14 px-6 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
               <div>
-                <h2 className="text-[15px] font-bold text-gray-800">Aktivite Ekle</h2>
+                <h2 className="text-[15px] font-bold text-gray-800">{t.addActivity}</h2>
                 <p className="text-[11px] text-gray-400">Eklemek istediğiniz türü seçin</p>
               </div>
               <button onClick={() => setIsActivityPanelOpen(false)} className="text-gray-400 hover:text-gray-700 text-xl font-bold w-8 h-8 flex items-center justify-center">✕</button>
@@ -996,7 +998,7 @@ export default function TeacherCoursePage() {
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
               </div>
-              <h3 className="font-bold text-gray-800 text-lg">Aktiviteyi Sil</h3>
+              <h3 className="font-bold text-gray-800 text-lg">{t.deleteActivity}</h3>
             </div>
             <div className="p-6 text-gray-600 text-sm font-medium text-center">
               <span className="font-bold text-gray-800">'{activityToDelete.name}'</span> isimli aktiviteyi silmek istediğinize emin misiniz?
@@ -1024,7 +1026,7 @@ export default function TeacherCoursePage() {
         <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden animate-zoom-in">
             <div className="p-5 border-b border-gray-100 bg-blue-50/50 flex justify-between items-center">
-              <h3 className="font-bold text-blue-800 text-lg">Derse Duyuru Ekle</h3>
+              <h3 className="font-bold text-blue-800 text-lg">{t.addAnnouncementToCourse}</h3>
               <button onClick={() => setAnnouncementModalOpen(false)} className="text-gray-400 hover:text-gray-700 text-xl font-bold">✕</button>
             </div>
             <form onSubmit={handleAddAnnouncement} className="p-6">

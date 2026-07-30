@@ -1,8 +1,10 @@
+import { useLanguage } from "./LanguageContext";
 import { useEffect, useState, useCallback } from "react";
 import { moodlePost, fetchUserAnnouncements } from "./moodleApi";
 import { useAuth } from "./AuthContext";
 
 export default function Announcements() {
+  const { t } = useLanguage();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const { token, userInfo } = useAuth();
@@ -64,11 +66,11 @@ export default function Announcements() {
     <div className="min-h-screen bg-[#fcfcfc] font-sans text-[#495057] antialiased flex flex-col">
       <main className="max-w-[1200px] w-full mx-auto px-4 py-8 flex-1">
         <div className="mb-6">
-          <h2 className="text-[22px] font-medium text-[#212529]">Duyurular</h2>
+          <h2 className="text-[22px] font-medium text-[#212529]">{t.announcements}</h2>
         </div>
         
         {loading ? (
-          <div className="text-center py-10 text-gray-500">Yükleniyor...</div>
+          <div className="text-center py-10 text-gray-500">{t.loadingData}</div>
         ) : announcements.length === 0 ? (
           <div className="bg-white border border-[#e9ecef] rounded-[10px] p-12 text-center text-gray-500 font-medium shadow-sm flex flex-col items-center">
             <div className="w-[180px] h-[180px] bg-[#f1f3f5] rounded-full flex items-center justify-center mb-6 relative">

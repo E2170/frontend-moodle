@@ -1,3 +1,4 @@
+import { useLanguage } from "./LanguageContext";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
@@ -126,9 +127,9 @@ function TeacherAssignViewer({ mod, token, courseId }) {
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-xs font-bold text-gray-500">Öğrenci</th>
+                <th className="px-4 py-3 text-xs font-bold text-gray-500">{t.student}</th>
                 <th className="px-4 py-3 text-xs font-bold text-gray-500">Durum</th>
-                <th className="px-4 py-3 text-xs font-bold text-gray-500">Tarih</th>
+                <th className="px-4 py-3 text-xs font-bold text-gray-500">{t.date}</th>
                 <th className="px-4 py-3 text-xs font-bold text-gray-500">Dosyalar</th>
                 <th className="px-4 py-3 text-xs font-bold text-gray-500">Not</th>
               </tr>
@@ -461,7 +462,7 @@ function TeacherQuizViewer({ mod, token, courseId }) {
                 {isExpanded && (
                   <div className="bg-gray-50 border-t border-gray-100 px-5 py-4">
                     {reviewLoading && !review ? (
-                      <div className="text-xs text-gray-400">Yükleniyor...</div>
+                      <div className="text-xs text-gray-400">{t.loadingData}</div>
                     ) : review?.questions?.length > 0 ? (
                       <div className="space-y-2">
                         {review.questions.map((q, qi) => (
@@ -792,7 +793,7 @@ function TeacherForumViewer({ mod, token }) {
                           className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none focus:border-blue-400 resize-none"
                           placeholder="Yanıt yazın..." />
                         <div className="flex gap-2">
-                          <button onClick={() => setReplyTo(null)} className="text-xs text-gray-500 hover:text-gray-700">İptal</button>
+                          <button onClick={() => setReplyTo(null)} className="text-xs text-gray-500 hover:text-gray-700">{t.cancel}</button>
                           <button onClick={() => handleReply(d.id)} disabled={replying}
                             className="bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50">
                             {replying ? "Gönderiliyor..." : "Yanıtla"}
@@ -835,7 +836,7 @@ function TeacherPageViewer({ mod, token, courseId }) {
       <h2 className="text-lg font-bold text-gray-800">📃 {mod.name}</h2>
       {content
         ? <div className="text-sm text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: content }} />
-        : <div className="text-center py-10 text-gray-400">İçerik bulunamadı.</div>}
+        : <div className="text-center py-10 text-gray-400">{t.noContent}</div>}
     </div>
   );
 }
@@ -1176,6 +1177,7 @@ function TeacherGenericViewer({ mod }) {
 // ANA BİLEŞEN
 // ─────────────────────────────────────────────
 export default function TeacherActivityViewer({ mod, token, courseId, onBack }) {
+  const { t } = useLanguage();
 
   const renderViewer = () => {
     switch (mod.modname) {

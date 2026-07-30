@@ -1,9 +1,13 @@
+import NetworkError from "./NetworkError";
+import { useLanguage } from "./LanguageContext";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { moodlePost, fetchUserAnnouncements } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 
 export default function TeacherDashboard() {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   const [courses, setCourses] = useState([]);
@@ -36,39 +40,38 @@ export default function TeacherDashboard() {
           moodlePost(token, "core_message_get_conversations", { userid: userData.userid }).catch(e => { console.error("messages error", e); return null; })
         ]);
 
-        const safeParse = async (res) => {
-          return res ? res : null;
-        };
-
-        const coursesData = await safeParse(coursesResponse);
-        const timelineData = await safeParse(timelineResponse);
-        const messagesData = await safeParse(messagesResponse);
+        const coursesData = coursesResponse ? coursesResponse : null;
+        const timelineData = timelineResponse ? timelineResponse : null;
+        const messagesData = messagesResponse ? messagesResponse : null;
 
         if (coursesData && Array.isArray(coursesData)) {
           setCourses(coursesData);
           
-          // Hesapla: Sanal Sınıf ve Forumlar
-          let virtuals = 0;
-          let forumsCount = 0;
-          
-          await Promise.all(coursesData.map(async (course) => {
-            try {
-              const contentsRes = await moodlePost(token, "core_course_get_contents", { courseid: course.id });
-              if (Array.isArray(contentsRes)) {
-                contentsRes.forEach(sec => {
-                  if (sec.modules) {
-                    sec.modules.forEach(mod => {
-                      if (["bigbluebuttonbn", "zoom", "perculus", "adobeconnect"].includes(mod.modname)) virtuals++;
-                      if (mod.modname === "forum") forumsCount++;
-                    });
-                  }
-                });
+          // Arka planda asenkron olarak forum/sanal sınıf sayılarını hesapla
+          const fetchCourseDetails = async () => {
+            let virtuals = 0;
+            let forumsCount = 0;
+            
+            await Promise.all(coursesData.map(async (course) => {
+              try {
+                const contentsRes = await moodlePost(token, "core_course_get_contents", { courseid: course.id });
+                if (Array.isArray(contentsRes)) {
+                  contentsRes.forEach(sec => {
+                    if (sec.modules) {
+                      sec.modules.forEach(mod => {
+                        if (["bigbluebuttonbn", "zoom", "perculus", "adobeconnect"].includes(mod.modname)) virtuals++;
+                        if (mod.modname === "forum") forumsCount++;
+                      });
+                    }
+                  });
+                }
+              } catch (e) {
+                // ignore
               }
-            } catch (e) {
-              // ignore
-            }
-          }));
-          setTotalCounts({ virtuals, forums: forumsCount });
+            }));
+            setTotalCounts({ virtuals, forums: forumsCount });
+          };
+          fetchCourseDetails(); // UI'ı bloklamadan arka planda çalıştır
         }
         if (timelineData && Array.isArray(timelineData.events)) {
           setTimelineEvents(timelineData.events);
@@ -82,6 +85,7 @@ export default function TeacherDashboard() {
       }
     } catch (error) {
       console.error("Moodle API Eğitmen Paneli Veri Hatası:", error);
+      setError("Sunucuya şu an ulaşılamıyor veya bağlantı zaman aşımına uğradı. Lütfen internet bağlantınızı kontrol edip tekrar deneyin.");
     } finally {
       setLoading(false);
     }
@@ -136,6 +140,14 @@ export default function TeacherDashboard() {
     0,
   );
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#fcfcfc] font-sans text-[#495057] antialiased flex flex-col items-center justify-center">
+        <NetworkError message={error} onRetry={fetchDashboardData} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#fcfcfc] font-sans text-[#495057] antialiased flex flex-col">
       
@@ -145,10 +157,10 @@ export default function TeacherDashboard() {
             {/* Derslerim Header */}
             <div className="flex justify-between student-course-header" style={{ padding: "2px 0px", marginBottom: "-7px", marginTop: "10px" }}>
               <div>
-                <span className="text-[22px] font-medium text-[#212529]">Derslerim</span>
+                <span className="text-[22px] font-medium text-[#212529]">{t.myCourses}</span>
               </div>
               <div className="align-self-center flex items-center">
-                <span className="text-[14px] font-medium text-[#495057] mr-1">Toplam Ders</span>
+                <span className="text-[14px] font-medium text-[#495057] mr-1">{t.totalCourses}</span>
                 <span className="bg-[#f8f9fa] border border-[#f8f9fa] text-[#212529] px-2 py-0.5 rounded-full text-[12px] font-semibold mx-1">
                   {loading ? "..." : activeCourses.length}
                 </span>
@@ -161,7 +173,7 @@ export default function TeacherDashboard() {
             {/* Course Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" style={{ marginTop: "15px" }}>
               {loading ? (
-                <div className="col-span-full text-center py-10 text-gray-500">Yükleniyor...</div>
+                <div className="col-span-full text-center py-10 text-gray-500">{t.loadingData}</div>
               ) : activeCourses.map((course) => {
                 const courseNameOnly = extractCourseNameOnly(course.fullname);
                 const courseCode = extractCourseCode(course.fullname) || course.shortname;
@@ -219,7 +231,7 @@ export default function TeacherDashboard() {
                 </div>
                 <div className="p-4 min-h-[120px] text-[14px] text-[#212529]">
                   {announcements.length === 0 ? (
-                    <p className="text-[13px] text-[#6c757d]">Herhangi bir duyuru bulunamadı.</p>
+                    <p className="text-[13px] text-[#6c757d]">{t.noAnnouncementsFound}</p>
                   ) : (
                     announcements.map((item) => (
                       <div key={item.id} className="mb-4 pb-4 border-b border-[#f8f9fa] last:border-0 last:pb-0 last:mb-0">
@@ -235,9 +247,7 @@ export default function TeacherDashboard() {
               {/* Mesajlarım */}
               <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm">
                 <div className="flex justify-between items-center px-4 py-3 border-b border-[#e9ecef]">
-                  <span className="text-[14px] font-medium text-[#212529]">
-                    Mesajlarım
-                    <span className="bg-[#f8f9fa] border border-[#f8f9fa] text-[#212529] px-2 py-0.5 rounded-full text-[12px] font-semibold ml-2">{unreadMessagesCount}</span>
+                  <span className="text-[14px] font-medium text-[#212529]">{t.myMessages}<span className="bg-[#f8f9fa] border border-[#f8f9fa] text-[#212529] px-2 py-0.5 rounded-full text-[12px] font-semibold ml-2">{unreadMessagesCount}</span>
                   </span>
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-[#212529] cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
@@ -269,9 +279,7 @@ export default function TeacherDashboard() {
               {/* Forumlar */}
               <div className="bg-white border border-[#e9ecef] rounded-[10px] shadow-sm">
                 <div className="flex justify-between items-center px-4 py-3 border-b border-[#e9ecef]">
-                  <span className="text-[14px] font-medium text-[#212529]">
-                    Forumlar
-                    <span className="bg-[#f8f9fa] border border-[#f8f9fa] text-[#212529] px-2 py-0.5 rounded-full text-[12px] font-semibold ml-2">{totalCounts.forums}</span>
+                  <span className="text-[14px] font-medium text-[#212529]">{t.forumsTitle}<span className="bg-[#f8f9fa] border border-[#f8f9fa] text-[#212529] px-2 py-0.5 rounded-full text-[12px] font-semibold ml-2">{totalCounts.forums}</span>
                   </span>
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-[#212529] cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
@@ -280,9 +288,7 @@ export default function TeacherDashboard() {
                     </button>
                   </div>
                 </div>
-                <div className="p-4 min-h-[120px] text-[14px] text-[#212529]">
-                  Herhangi bir forum bulunmadı.
-                </div>
+                <div className="p-4 min-h-[120px] text-[14px] text-[#212529]">{t.noForumsFound}</div>
               </div>
 
               {/* Sanal Sınıf */}
@@ -299,9 +305,7 @@ export default function TeacherDashboard() {
                     </button>
                   </div>
                 </div>
-                <div className="p-4 min-h-[120px] text-[14px] text-[#212529]">
-                  Yaklaşan sanal sınıf aktiviteniz yoktur.
-                </div>
+                <div className="p-4 min-h-[120px] text-[14px] text-[#212529]">{t.noUpcomingVirtualClass}</div>
               </div>
             </div>
 
@@ -321,11 +325,11 @@ export default function TeacherDashboard() {
                 </button>
               </div>
               <div className="p-4" style={{ minHeight: "300px" }}>
-                <h4 className="text-[15px] font-bold text-[#e03a3c] border-b-2 border-[#e03a3c] inline-block pb-1 mb-4">Yaklaşan Etkinlikler</h4>
+                <h4 className="text-[15px] font-bold text-[#e03a3c] border-b-2 border-[#e03a3c] inline-block pb-1 mb-4">{t.upcomingEventsLabel}</h4>
                 {loading ? (
-                  <div className="text-[12px] text-gray-500">Yükleniyor...</div>
+                  <div className="text-[12px] text-gray-500">{t.loadingData}</div>
                 ) : timelineEvents.length === 0 ? (
-                  <div className="text-[12px] text-gray-500">Yaklaşan etkinlik bulunmamaktadır.</div>
+                  <div className="text-[12px] text-gray-500">{t.noUpcomingEvents}</div>
                 ) : (
                   <ul className="list-none p-0 m-0 border-l-[3px] border-[#e03a3c] pl-4 space-y-4">
                     {timelineEvents.slice(0, 5).map((event) => (

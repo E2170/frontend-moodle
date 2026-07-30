@@ -2,10 +2,12 @@ import { useState } from "react";
 import { moodlePost } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { useLanguage } from "./LanguageContext";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { t, language, setLanguage } = useLanguage();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -152,6 +154,13 @@ export default function LoginPage() {
         }}
       >
         <div className="absolute inset-0 bg-black/20"></div>
+
+        {/* Language Switcher in top right for Login Page */}
+        <div className="absolute top-6 right-8 flex gap-3 z-20">
+          <button onClick={() => setLanguage('tr')} className={`w-[36px] h-[36px] bg-[#d32f2f] rounded-full flex items-center justify-center text-[12px] font-bold border-[2px] shadow-lg cursor-pointer uppercase text-white transition-all ${language === 'tr' ? 'border-white opacity-100 scale-110' : 'border-transparent opacity-60 hover:opacity-100 scale-100'}`}>TR</button>
+          <button onClick={() => setLanguage('en')} className={`w-[36px] h-[36px] bg-[#1976d2] rounded-full flex items-center justify-center text-[12px] font-bold border-[2px] shadow-lg cursor-pointer uppercase text-white transition-all ${language === 'en' ? 'border-white opacity-100 scale-110' : 'border-transparent opacity-60 hover:opacity-100 scale-100'}`}>EN</button>
+          <button onClick={() => setLanguage('ar')} className={`w-[36px] h-[36px] bg-[#388e3c] rounded-full flex items-center justify-center text-[12px] font-bold border-[2px] shadow-lg cursor-pointer uppercase text-white transition-all ${language === 'ar' ? 'border-white opacity-100 scale-110' : 'border-transparent opacity-60 hover:opacity-100 scale-100'}`}>AR</button>
+        </div>
       </div>
 
       {/* Tam Ekran Yükleniyor Overlay */}
@@ -162,22 +171,28 @@ export default function LoginPage() {
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
           <div className="text-white text-2xl font-bold tracking-wide shadow-black drop-shadow-lg">
-            Bilgileriniz Doğrulanıyor...
+            {t.verifying}
           </div>
           <div className="text-blue-200 mt-2 text-base font-medium">
-            Lütfen sisteme giriş yapana kadar bekleyiniz
+            {t.pleaseWait}
           </div>
         </div>
       )}
 
-      <div className="w-full lg:w-2/5 flex items-center justify-center p-8 bg-white shadow-[-20px_0_40px_rgba(0,0,0,0.05)] z-10">
+      <div className="w-full lg:w-2/5 flex items-center justify-center p-8 bg-white shadow-[-20px_0_40px_rgba(0,0,0,0.05)] z-10 relative">
+        {/* Mobile Language Switcher for Login Page */}
+        <div className="absolute top-4 right-4 flex lg:hidden gap-2 z-20">
+          <button onClick={() => setLanguage('tr')} className={`w-[28px] h-[28px] bg-[#d32f2f] rounded-full flex items-center justify-center text-[10px] font-bold border-[1.5px] shadow-sm cursor-pointer uppercase text-white transition-opacity ${language === 'tr' ? 'border-gray-800 opacity-100' : 'border-transparent opacity-70 hover:opacity-100'}`}>TR</button>
+          <button onClick={() => setLanguage('en')} className={`w-[28px] h-[28px] bg-[#1976d2] rounded-full flex items-center justify-center text-[10px] font-bold border-[1.5px] shadow-sm cursor-pointer uppercase text-white transition-opacity ${language === 'en' ? 'border-gray-800 opacity-100' : 'border-transparent opacity-70 hover:opacity-100'}`}>EN</button>
+          <button onClick={() => setLanguage('ar')} className={`w-[28px] h-[28px] bg-[#388e3c] rounded-full flex items-center justify-center text-[10px] font-bold border-[1.5px] shadow-sm cursor-pointer uppercase text-white transition-opacity ${language === 'ar' ? 'border-gray-800 opacity-100' : 'border-transparent opacity-70 hover:opacity-100'}`}>AR</button>
+        </div>
         <div className="w-full max-w-md">
-          <div className="mb-8 text-center lg:text-left">
+          <div className="mb-8 text-center lg:text-left mt-8 lg:mt-0">
             <h1 className="text-3xl font-extrabold text-blue-800 tracking-tight mb-2">
-              AKUZEM GİRİŞ
+              {t.loginTitle}
             </h1>
             <p className="text-sm text-gray-500">
-              Sisteme erişim sağlamak için kimlik bilgilerinizi giriniz.
+              {t.loginDesc}
             </p>
           </div>
 
@@ -190,7 +205,7 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Kullanıcı adı
+                {t.username}
               </label>
               <input
                 type="text"
@@ -198,13 +213,13 @@ export default function LoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
-                placeholder="Kullanıcı adınızı giriniz"
+                placeholder={t.usernamePlaceholder}
               />
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Şifre
+                {t.password}
               </label>
               <input
                 type="password"
@@ -221,7 +236,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-3.5 bg-blue-700 text-white font-bold rounded-lg hover:bg-blue-800 transition-all disabled:opacity-70"
             >
-              {loading ? "Giriş yapılıyor..." : "Giriş yap"}
+              {loading ? t.loggingIn : t.loginBtn}
             </button>
           </form>
         </div>

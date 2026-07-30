@@ -1,3 +1,4 @@
+import { useLanguage } from "./LanguageContext";
 import { useState, useEffect, useRef } from "react";
 
 // ─────────────────────────────────────────────
@@ -56,7 +57,7 @@ const getMimeIcon = (mime) => {
 const LoadingSpinner = () => (
   <div className="flex flex-col items-center justify-center py-20 gap-3">
     <div className="w-8 h-8 border-4 border-gray-200 border-t-[#495057] rounded-full animate-spin" />
-    <span className="text-[13px] text-gray-400">Yükleniyor...</span>
+    <span className="text-[13px] text-gray-400">{t.loadingData}</span>
   </div>
 );
 
@@ -1029,7 +1030,7 @@ const [quiz, setQuiz] = useState(null);
       <div className="relative group w-full mt-4 pb-2">
         <button onClick={startOrResume} disabled={quizLoading || !canAttempt}
           className="w-full py-3 rounded-2xl text-[14px] font-bold text-white bg-[#495057] hover:bg-[#343a40] transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
-          {quizLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Yükleniyor...</> : ongoing ? "▶️ Devam Et" : attempts.length > 0 ? "🔁 Tekrar Dene" : "📋 Sınava Başla"}
+          {quizLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>{t.loadingData}</> : ongoing ? "▶️ Devam Et" : attempts.length > 0 ? "🔁 Tekrar Dene" : "📋 Sınava Başla"}
         </button>
         {!canAttempt && (
           <div className="absolute bottom-[calc(100%-8px)] left-1/2 -translate-x-1/2 mb-2 w-max px-3 py-1.5 bg-gray-800 text-white text-[11px] font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
@@ -1152,7 +1153,7 @@ function PageViewer({ mod, token, courseId }) {
       <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
         {content
           ? <div className="text-[14px] text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: content }} />
-          : <div className="text-center py-8 text-gray-400">İçerik bulunamadı.</div>}
+          : <div className="text-center py-8 text-gray-400">{t.noContent}</div>}
       </div>
     </div>
   );
@@ -1168,7 +1169,7 @@ function LabelViewer({ mod }) {
       <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
         {mod.description
           ? <div className="text-[14px] text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: mod.description }} />
-          : <div className="text-center py-8 text-gray-400">İçerik bulunamadı.</div>}
+          : <div className="text-center py-8 text-gray-400">{t.noContent}</div>}
       </div>
     </div>
   );
@@ -1343,7 +1344,7 @@ function ForumViewer({ mod, token }) {
                               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400 resize-none"
                               placeholder="Yanıt yazın..." />
                             <div className="flex gap-2">
-                              <button onClick={() => setReplyTo(null)} className="text-sm font-semibold text-gray-500 hover:text-gray-700">İptal</button>
+                              <button onClick={() => setReplyTo(null)} className="text-sm font-semibold text-gray-500 hover:text-gray-700">{t.cancel}</button>
                               <button onClick={() => handleReply(d.id)} disabled={replying}
                                 className="bg-blue-600 text-white text-sm font-bold px-5 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
                                 {replying ? "Gönderiliyor..." : "Yanıtla"}
@@ -1955,7 +1956,7 @@ function WikiViewer({ mod, token, courseId }) {
         {contentLoading ? <LoadingSpinner /> : (
           pageContent
             ? <div className="text-[14px] text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: pageContent }} />
-            : <div className="text-center py-8 text-gray-400">İçerik bulunamadı.</div>
+            : <div className="text-center py-8 text-gray-400">{t.noContent}</div>
         )}
       </div>
     </div>
@@ -2213,6 +2214,7 @@ const QuizTimer = ({ initialTimeLeft, onExpire }) => {
 };
 
 export default function ActivityViewer({ mod, token, userId, courseId, onBack }) {
+  const { t } = useLanguage();
   
   const renderViewer = () => {
     switch (mod.modname) {

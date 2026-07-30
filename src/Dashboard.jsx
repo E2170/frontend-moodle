@@ -1,13 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
+import NetworkError from "./NetworkError";
 import { moodlePost, fetchUserAnnouncements } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { useLanguage } from "./LanguageContext";
 import CourseCard from "./components/CourseCard";
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { token, userInfo } = useAuth();
+  const { t } = useLanguage();
 
   // Durum Yönetimleri
   const [courses, setCourses] = useState([]);
@@ -36,124 +39,61 @@ export default function Dashboard() {
     }
 
     try {
-      const [
-        coursesResponse,
-        timelineResponse,
-        announcementsData,
-        messagesResponse
-      ] = await Promise.all([
-        moodlePost(token, "core_enrol_get_users_courses", { userid: userInfo.userid }).catch(e => { console.error("courses error", e); return null; }),
-        moodlePost(token, "core_calendar_get_action_events_by_timesort").catch(e => { console.error("timeline error", e); return null; }),
-        fetchUserAnnouncements(token, userInfo.userid).catch(e => { console.error("announcements error", e); return []; }),
-        moodlePost(token, "core_message_get_conversations", { userid: userInfo.userid }).catch(e => { console.error("messages error", e); return null; })
-      ]);
+        // Dersleri Çek
+        moodlePost(token, "core_enrol_get_users_courses", { userid: userInfo.userid })
+          .then(res => {
+             if (res && Array.isArray(res)) {
+               const enrichedCourses = res.map((course) => {
+                 course.calculatedProgress = course.progress || 0;
+                 return course;
+               });
+               setCourses(enrichedCourses);
+               setTotalCounts({ exams: 0, assigns: 0, virtuals: 0 }); // Ağır sorgu kaldırıldığı için 0 olarak bırakıldı
+             }
+             setLoading(false); // Dersler ana içerik olduğu için burada loading'i kapatıyoruz
+          })
+          .catch(e => {
+             console.error("courses error", e);
+             setError("Dersler yüklenirken bir sorun oluştu.");
+             setLoading(false);
+          });
 
-      const safeParse = async (res) => {
-        return res ? res : null;
-      };
+        // Takvimi Çek
+        moodlePost(token, "core_calendar_get_action_events_by_timesort")
+          .then(res => {
+             if (res && Array.isArray(res.events)) {
+               setTimelineEvents(res.events);
+               const currentUnixTime = Math.floor(Date.now() / 1000);
+               let past = 0, up = 0, ungr = 0, comp = 0;
+               res.events.forEach((event) => {
+                 if (!event) return;
+                 if (event.timesort && event.timesort < currentUnixTime) past++;
+                 else up++;
+                 if (event.action && event.action.clickable === false) comp++;
+                 else ungr++;
+               });
+               setActivityStats({ pastDue: past, upcoming: up, ungraded: ungr, completed: comp });
+             }
+          })
+          .catch(e => console.error("timeline error", e));
 
-          const coursesData = await safeParse(coursesResponse);
-          const timelineData = await safeParse(timelineResponse);
-          const messagesData = await safeParse(messagesResponse);
+        // Duyuruları Çek
+        fetchUserAnnouncements(token, userInfo.userid)
+          .then(res => {
+             if (res && Array.isArray(res)) setAnnouncements(res);
+          })
+          .catch(e => console.error("announcements error", e));
 
-          let exams = 0;
-          let assigns = 0;
-          let virtuals = 0;
+        // Mesajları Çek
+        moodlePost(token, "core_message_get_conversations", { userid: userInfo.userid })
+          .then(res => {
+             if (res && Array.isArray(res.conversations)) setConversations(res.conversations);
+          })
+          .catch(e => console.error("messages error", e));
 
-          if (coursesData && Array.isArray(coursesData)) {
-            const enrichedCourses = await Promise.all(coursesData.map(async (course) => {
-              try {
-                // Moodle's native 'progress' is only updated during cron.
-                // To show instant progress, we dynamically calculate it from module states.
-                const contentsRes = await moodlePost(token, "core_course_get_contents", {
-                  courseid: course.id
-                });
-                
-                if (Array.isArray(contentsRes)) {
-                  let totalActivities = 0;
-                  let completedActivities = 0;
-                  
-                  contentsRes.forEach(sec => {
-                    if (sec.modules) {
-                      sec.modules.forEach(mod => {
-                        if (mod.modname === "quiz") exams++;
-                        if (mod.modname === "assign") assigns++;
-                        if (["bigbluebuttonbn", "zoom", "perculus", "adobeconnect"].includes(mod.modname)) virtuals++;
-
-                        // Count modules that have completion enabled (completion > 0)
-                        if (mod.completion > 0) {
-                          totalActivities++;
-                          // state 1: completed, 2: completed passed, 3: completed failed
-                          if (mod.completiondata && (mod.completiondata.state == 1 || mod.completiondata.state == 2 || mod.completiondata.state == 3)) {
-                            completedActivities++;
-                          }
-                        }
-                      });
-                    }
-                  });
-                  
-                  if (totalActivities > 0) {
-                    course.calculatedProgress = Math.round((completedActivities / totalActivities) * 100);
-                  } else {
-                    course.calculatedProgress = course.progress || 0;
-                  }
-                } else {
-                  course.calculatedProgress = course.progress || 0;
-                }
-              } catch (e) {
-                course.calculatedProgress = course.progress || 0;
-              }
-              return course;
-            }));
-            
-            setCourses(enrichedCourses);
-            setTotalCounts({ exams, assigns, virtuals });
-          }
-
-          if (timelineData && Array.isArray(timelineData.events)) {
-            setTimelineEvents(timelineData.events);
-
-            const currentUnixTime = Math.floor(Date.now() / 1000);
-            let past = 0;
-            let up = 0;
-            let ungr = 0;
-            let comp = 0;
-
-            timelineData.events.forEach((event) => {
-              if (!event) return;
-
-              if (event.timesort && event.timesort < currentUnixTime) {
-                past++;
-              } else {
-                up++;
-              }
-
-              if (event.action && event.action.clickable === false) {
-                comp++;
-              } else {
-                ungr++;
-              }
-            });
-
-            setActivityStats({
-              pastDue: past,
-              upcoming: up,
-              ungraded: ungr,
-              completed: comp,
-            });
-          }
-
-          if (announcementsData && Array.isArray(announcementsData)) {
-            setAnnouncements(announcementsData);
-          }
-
-          if (messagesData && Array.isArray(messagesData.conversations)) {
-            setConversations(messagesData.conversations);
-          }
     } catch (err) {
       console.error("Moodle API entegrasyon hatası:", err);
-      setError("Veriler yüklenirken bir sorun oluştu. Moodle sunucusuna geçici olarak ulaşılamıyor olabilir.");
-    } finally {
+      setError("Veriler başlatılırken bir sorun oluştu.");
       setLoading(false);
     }
   }, [token, userInfo]);
@@ -210,44 +150,43 @@ export default function Dashboard() {
   );
 
 
+  if (error) {
+    return (
+      <div className="bg-white font-sans text-gray-800 antialiased h-full flex flex-col items-center justify-center">
+        <NetworkError message={error} onRetry={fetchDashboardData} />
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white font-sans text-gray-800 antialiased h-full">
       {/* NAVBAR */}
 
       <main className="w-full max-w-[1400px] mx-auto px-4 sm:px-[6%] py-8">
         
-        {error && (
-          <div className="bg-red-50 border border-red-200 p-4 mb-6 rounded-[8px] flex items-center gap-3">
-            <svg className="w-6 h-6 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div className="text-sm font-medium text-red-800">{error}</div>
-          </div>
-        )}
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           
           {/* DERSLERİM - 2 COLUMN */}
           <div className="lg:col-span-2">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
-              <h2 className="text-[20px] font-medium text-[#212529]">Derslerim</h2>
+              <h2 className="text-[20px] font-medium text-[#212529]">{t.myCourses}</h2>
               <div className="flex items-center gap-3">
-                <span className="text-[13px] text-[#212529] font-medium">Toplam Ders</span>
+                <span className="text-[13px] text-[#212529] font-medium">{t.totalCourses}</span>
                 <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{activeCourses.length}</span>
                 <button 
                   onClick={() => navigate("/mycourse")} 
                   className="text-[13px] text-[#212529] border border-[#dee2e6] bg-[#f8f9fa] px-3 py-1 rounded-md font-medium flex items-center hover:bg-[#e2e6ea] transition-colors ml-2"
                 >
-                  Tümü <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span>
+                  {t.viewAll} <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span>
                 </button>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4">
               {loading ? (
-                <div className="col-span-2 text-center py-8 text-gray-500 text-sm">Veriler yükleniyor...</div>
+                <div className="col-span-2 text-center py-8 text-gray-500 text-sm">{t.loadingData}</div>
               ) : activeCourses.length === 0 ? (
-                <div className="col-span-2 text-center py-8 text-gray-500 text-sm border border-[#e9ecef] rounded-[8px] bg-white">Kayıtlı ders bulunamadı.</div>
+                <div className="col-span-2 text-center py-8 text-gray-500 text-sm border border-[#e9ecef] rounded-[8px] bg-white">{t.noCourses}</div>
               ) : (
                 activeCourses.map((course) => (
                   <CourseCard key={course.id} course={course} />
@@ -260,20 +199,20 @@ export default function Dashboard() {
           <div className="lg:col-span-1 mt-6 lg:mt-0">
              <div className="bg-white rounded-[8px] border border-[#e9ecef] shadow-[0_1px_3px_rgba(0,0,0,0.02)] h-[100%] flex flex-col">
                 <div className="flex items-center justify-between p-4 border-b border-[#e9ecef]">
-                  <h2 className="text-[15px] font-medium text-[#212529]">Zaman Çizelgesi</h2>
+                  <h2 className="text-[15px] font-medium text-[#212529]">{t.timeline}</h2>
                   <button 
                     onClick={() => navigate("/calendar")} 
                     className="text-[12px] text-[#212529] font-medium flex items-center hover:text-[#0056b3]"
                   >
-                    Tümü <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span>
+                    {t.viewAll} <span className="ml-1 text-[16px] text-gray-500 leading-none">→</span>
                   </button>
                 </div>
                 <div className="p-5 flex-1">
-                  <h4 className="text-[13px] text-[#e83e8c] font-bold mb-4 border-b border-[#e83e8c] inline-block pb-0.5">Geçmiş</h4>
+                  <h4 className="text-[13px] text-[#e83e8c] font-bold mb-4 border-b border-[#e83e8c] inline-block pb-0.5">{t.past}</h4>
                   {loading ? (
-                    <div className="text-[12px] text-gray-500">Yükleniyor...</div>
+                    <div className="text-[12px] text-gray-500">{t.loadingData}</div>
                   ) : timelineEvents.length === 0 ? (
-                    <div className="text-[12px] text-gray-500">Yaklaşan aktiviteniz yoktur.</div>
+                    <div className="text-[12px] text-gray-500">{t.noUpcoming}</div>
                   ) : (
                     timelineEvents.slice(0, 4).map(event => (
                       <div 
@@ -309,7 +248,7 @@ export default function Dashboard() {
           <div className="bg-white rounded-[8px] border border-[#e9ecef] shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-[#e9ecef]">
                <div className="flex items-center gap-2">
-                 <h2 className="text-[15px] font-medium text-[#212529]">Sanal Sınıf</h2>
+                 <h2 className="text-[15px] font-medium text-[#212529]">{t.virtualClass}</h2>
                  <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{virtualClassroomEvents.length}</span>
                </div>
                <div className="flex items-center gap-3">
@@ -319,7 +258,7 @@ export default function Dashboard() {
             </div>
             <div className="p-5 flex-1">
               {virtualClassroomEvents.length === 0 ? (
-                <p className="text-[13px] text-[#6c757d]">Yaklaşan sanal sınıf aktiviteniz yoktur.</p>
+                <p className="text-[13px] text-[#6c757d]">{t.noUpcomingVirtualClass}</p>
               ) : (
                  virtualClassroomEvents.slice(0, 4).map(event => (
                    <div key={event.id} className="mb-3 border-b border-[#f8f9fa] pb-3 last:border-0 last:pb-0">
@@ -335,7 +274,7 @@ export default function Dashboard() {
           <div className="bg-white rounded-[8px] border border-[#e9ecef] shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-[#e9ecef]">
                <div className="flex items-center gap-2">
-                 <h2 className="text-[15px] font-medium text-[#212529]">Aktivitelerim</h2>
+                 <h2 className="text-[15px] font-medium text-[#212529]">{t.myActivities}</h2>
                  <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{totalActivities + activityStats.completed + activityStats.ungraded}</span>
                </div>
                <div className="flex items-center gap-3">
@@ -367,7 +306,7 @@ export default function Dashboard() {
           <div className="bg-white rounded-[8px] border border-[#e9ecef] shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-[#e9ecef]">
                <div className="flex items-center gap-2">
-                 <h2 className="text-[15px] font-medium text-[#212529]">Mesajlarım</h2>
+                 <h2 className="text-[15px] font-medium text-[#212529]">{t.myMessages}</h2>
                  <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{unreadMessagesCount}</span>
                </div>
                <div className="flex items-center gap-3">
@@ -425,7 +364,7 @@ export default function Dashboard() {
           <div className="bg-white rounded-[8px] border border-[#e9ecef] shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-[#e9ecef]">
                <div className="flex items-center gap-2">
-                 <h2 className="text-[15px] font-medium text-[#212529]">Sınav</h2>
+                 <h2 className="text-[15px] font-medium text-[#212529]">{t.exam}</h2>
                  <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{examEvents.length}</span>
                </div>
                <div className="flex items-center gap-3">
@@ -451,7 +390,7 @@ export default function Dashboard() {
           <div className="bg-white rounded-[8px] border border-[#e9ecef] shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-[#e9ecef]">
                <div className="flex items-center gap-2">
-                 <h2 className="text-[15px] font-medium text-[#212529]">Ödev</h2>
+                 <h2 className="text-[15px] font-medium text-[#212529]">{t.assignment}</h2>
                  <span className="bg-[#f8f9fa] border border-[#dee2e6] text-[#212529] text-[11px] font-bold px-2 py-0.5 rounded-full">{assignEvents.length}</span>
                </div>
                <div className="flex items-center gap-3">

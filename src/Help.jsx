@@ -1,38 +1,40 @@
+import { useLanguage } from "./LanguageContext";
 import { useState } from "react";
 
 export default function Help() {
+  const { t } = useLanguage();
   const [openFaq, setOpenFaq] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const faqs = [
     {
       id: 1,
-      question: "Sisteme nasıl giriş yapabilirim?",
-      answer: "Uzaktan eğitim sistemine öğrenci numaranız ve OBS (Öğrenci Bilgi Sistemi) şifreniz ile giriş yapabilirsiniz. İlk girişte şifrenizi değiştirmeniz istenebilir."
+      question: t.faq1_q,
+      answer: t.faq1_a
     },
     {
       id: 2,
-      question: "Canlı derslere nasıl katılırım?",
+      question: t.faq2_q,
       answer: "Derslerim sayfasından ilgili derse tıklayarak ders içeriğine ulaşın. O haftaki haftanın modülü içerisinde yer alan 'Canlı Ders' aktivitesine (Perculus, Zoom veya BigBlueButton) tıklayarak derse anında katılabilirsiniz."
     },
     {
       id: 3,
-      question: "Şifremi unuttum, ne yapmalıyım?",
+      question: t.faq3_q,
       answer: "Şifrenizi unuttuysanız giriş ekranındaki 'Şifremi Unuttum' bağlantısına tıklayarak kayıtlı e-posta adresinize veya telefon numaranıza sıfırlama bağlantısı isteyebilirsiniz."
     },
     {
       id: 4,
-      question: "Online sınav sırasında internetim koptu, ne olacak?",
+      question: t.faq4_q,
       answer: "Sınav süreniz bitmediyse, internetiniz geldiğinde sisteme tekrar giriş yapıp sınava kaldığınız yerden devam edebilirsiniz. Ancak süre bitmişse sistem o ana kadar verdiğiniz yanıtları otomatik olarak kaydeder."
     },
     {
       id: 5,
-      question: "Ödevimi (Dosya) nasıl yüklerim?",
+      question: t.faq5_q,
       answer: "Ders içeriğindeki 'Ödev' aktivitesine tıklayın. Açılan sayfada 'Gönderim Ekle' veya 'Ödev Yükle' butonuna basarak dosyanızı seçin ve 'Değişiklikleri Kaydet' butonuna basın. Kabul edilen dosya uzantılarına (.pdf, .docx vb.) dikkat ediniz."
     },
     {
       id: 6,
-      question: "Ders içeriklerini cihazıma indirebilir miyim?",
+      question: t.faq6_q,
       answer: "Öğretim görevlisinin izin verdiği PDF, PowerPoint ve benzeri dosyaları indirebilirsiniz. Ancak canlı ders kayıtları telif hakları gereği genellikle sadece sistem üzerinden izlenebilir."
     }
   ];
@@ -49,15 +51,13 @@ export default function Help() {
         {/* Header Section */}
         <div className="bg-[#f0f7ff] rounded-[16px] p-8 sm:p-12 text-center border border-[#e0effc] mb-8 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-40 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
-          <h1 className="text-3xl font-bold mb-4 text-[#003d82]">Size nasıl yardımcı olabiliriz?</h1>
-          <p className="text-[#334155] text-[15px] font-medium max-w-xl mx-auto mb-8">
-            Uzaktan eğitim sistemiyle ilgili sıkça sorulan sorulara göz atabilir veya aradığınız konuyu hızlıca bulabilirsiniz.
-          </p>
+          <h1 className="text-3xl font-bold mb-4 text-[#003d82]">{t.howCanWeHelp}</h1>
+          <p className="text-[#334155] text-[15px] font-medium max-w-xl mx-auto mb-8">{t.faqIntro}</p>
           <div className="relative max-w-2xl mx-auto">
             <svg className="w-6 h-6 absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             <input 
               type="text" 
-              placeholder="Sorunuzu buraya yazın (Örn: Sınav, Canlı Ders, Şifre)..." 
+              placeholder={t.typeQuestionHere} 
               className="w-full pl-12 pr-4 py-4 rounded-full text-[#212529] focus:outline-none focus:ring-4 focus:ring-[#66b0e3] transition-shadow text-[15px] shadow-sm font-medium border border-[#cbd5e1]"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -69,7 +69,7 @@ export default function Help() {
           
           {/* FAQ Section */}
           <div className="lg:col-span-2">
-            <h2 className="text-[20px] font-bold text-[#212529] mb-4">Sıkça Sorulan Sorular (SSS)</h2>
+            <h2 className="text-[20px] font-bold text-[#212529] mb-4">{t.faqTitle}</h2>
             <div className="bg-white border border-[#e9ecef] rounded-[12px] shadow-sm overflow-hidden">
               {filteredFaqs.length > 0 ? (
                 filteredFaqs.map((faq) => (
@@ -104,10 +104,8 @@ export default function Help() {
               <div className="w-12 h-12 bg-[#e6f2f9] text-[#006cb5] rounded-full flex items-center justify-center mb-4">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
               </div>
-              <h3 className="text-[18px] font-bold text-[#212529] mb-2">Destek İhtiyacınız mı var?</h3>
-              <p className="text-[14px] text-gray-600 mb-6 leading-relaxed">
-                Eğer SSS bölümünde aradığınız cevabı bulamadıysanız veya teknik bir problem yaşıyorsanız doğrudan destek ekibimizle iletişime geçebilirsiniz.
-              </p>
+              <h3 className="text-[18px] font-bold text-[#212529] mb-2">{t.needSupport}</h3>
+              <p className="text-[14px] text-gray-600 mb-6 leading-relaxed">{t.supportIntro}</p>
               
               <div className="space-y-4">
                 <a href="#" className="flex items-center gap-3 text-[14px] font-semibold text-[#006cb5] hover:text-[#004e82] transition-colors p-3 bg-[#f5f9fc] rounded-[8px] hover:bg-[#e6f2f9]">
@@ -119,9 +117,7 @@ export default function Help() {
                   0(850) 123 45 67
                 </a>
                 <a href="https://yardim.advancity.com.tr/egitim365/ogrenci-klavuzu-web" target="_blank" rel="noreferrer" className="flex items-center gap-3 text-[14px] font-semibold text-[#006cb5] hover:text-[#004e82] transition-colors p-3 bg-[#f5f9fc] rounded-[8px] hover:bg-[#e6f2f9]">
-                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
-                  Öğrenci Kılavuzu
-                </a>
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>{t.studentGuide}</a>
               </div>
             </div>
           </div>

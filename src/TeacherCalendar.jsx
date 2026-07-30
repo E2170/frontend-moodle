@@ -1,8 +1,10 @@
+import { useLanguage } from "./LanguageContext";
 import { useEffect, useState, useCallback } from "react";
 import { moodlePost } from "./moodleApi";
 import { useNavigate } from "react-router-dom";
 
 export default function TeacherCalendar() {
+  const { t } = useLanguage();
   // const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -147,7 +149,7 @@ export default function TeacherCalendar() {
         <aside className="w-full lg:w-[280px] bg-[#2d3246] text-white flex flex-col shrink-0 overflow-y-auto max-h-[300px] lg:max-h-full">
           {/* Takvim Başlık */}
           <div className="h-[46px] border-b border-[#3e445a] flex items-center px-4 shrink-0">
-            <span className="text-[15px] font-semibold text-white">Takvim</span>
+            <span className="text-[15px] font-semibold text-white">{t.calendar}</span>
           </div>
 
           {/* Mini Calendar */}

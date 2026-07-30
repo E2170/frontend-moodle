@@ -1,3 +1,4 @@
+import { useLanguage } from "./LanguageContext";
 import { useEffect, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { showAlert } from "./AlertModal";
@@ -12,6 +13,7 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categorie
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [categoryName, setCategoryName] = useState("");
+  const [examType, setExamType] = useState("");
 
   const handleFileChange = async (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -82,10 +84,29 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categorie
          startIdx = 1;
       }
 
+      // Otomatik dönem hesaplama
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1; // 1-12
+      let term = "";
+      if (month >= 9 || month <= 1) {
+         const endYear = month <= 1 ? year : year + 1;
+         const startYear = month <= 1 ? year - 1 : year;
+         term = `${startYear}-${endYear} Güz`;
+      } else {
+         term = `${year - 1}-${year} Bahar`;
+      }
+
+      let tags = `[Dönem: ${term}]`;
+      if (examType) {
+         tags += ` [Sınav: ${examType}]`;
+      }
+
       for (let i = startIdx; i < rows.length; i++) {
         const cols = rows[i].split(",").map(c => c.replace(/^"|"$/g, "").trim());
         if (cols.length >= 7) {
-            aikenText += cols[0] + "\n";
+            const finalQuestionText = `${tags} ${cols[0]}`;
+            aikenText += finalQuestionText + "\n";
             aikenText += "A. " + cols[1] + "\n";
             aikenText += "B. " + cols[2] + "\n";
             aikenText += "C. " + cols[3] + "\n";
@@ -94,7 +115,7 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categorie
             aikenText += "ANSWER: " + cols[6].toUpperCase() + "\n\n";
             
             parsedQuestions.push({
-               text: cols[0],
+               text: finalQuestionText,
                type: "Çoktan Seçmeli"
             });
         }
@@ -152,7 +173,7 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categorie
             <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <h2 className="text-xl font-bold text-gray-800">Çoklu Soru Ekle</h2>
+            <h2 className="text-xl font-bold text-gray-800">{t.addMultipleQuestions}</h2>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -199,7 +220,25 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categorie
 
           {/* Step 3 */}
           <div className="flex gap-6 items-start">
-            <div className="w-10 h-10 rounded-full border-2 border-green-500 flex items-center justify-center font-bold text-green-500 shrink-0 text-lg bg-green-50">3</div>
+            <div className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center font-bold text-gray-400 shrink-0 text-lg">3</div>
+            <div className="flex-1 pt-1">
+              <h3 className="text-base font-bold text-gray-800 mb-1">Sınav Türü Seçimi (İsteğe Bağlı)</h3>
+              <p className="text-sm text-gray-500 mb-4">Soruların hangi sınav türünde kullanılacağını belirtebilirsiniz.</p>
+            </div>
+            <div className="w-[300px]">
+              <select value={examType} onChange={(e) => setExamType(e.target.value)}
+                className="w-full border-b-2 border-gray-200 py-2 text-sm text-gray-700 outline-none focus:border-[#0b1b36] bg-transparent font-medium transition-colors">
+                <option value="">Sınav Türü Seçiniz</option>
+                <option value="Vize">Vize</option>
+                <option value="Final">{t.finalExam}</option>
+                <option value="Bütünleme">Bütünleme</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Step 4 */}
+          <div className="flex gap-6 items-start">
+            <div className="w-10 h-10 rounded-full border-2 border-green-500 flex items-center justify-center font-bold text-green-500 shrink-0 text-lg bg-green-50">4</div>
             <div className="flex-1 pt-1">
               <h3 className="text-base font-bold text-gray-800 mb-1">CSV Şablonu İndirme</h3>
               <p className="text-sm text-gray-500 mb-4">CSV şablon dosyasını bilgisayarınıza indiriniz ve sorularınızı içerecek şekilde güncelleyip kaydediniz. Sütunlar: Soru Metni, A, B, C, D, E, Doğru Cevap Şıkkı (Örn: A)</p>
@@ -215,9 +254,9 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categorie
             </div>
           </div>
 
-          {/* Step 4 */}
+          {/* Step 5 */}
           <div className="flex gap-6 items-start">
-            <div className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center font-bold text-gray-400 shrink-0 text-lg">4</div>
+            <div className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center font-bold text-gray-400 shrink-0 text-lg">5</div>
             <div className="flex-1 pt-1">
               <h3 className="text-base font-bold text-gray-800 mb-1">CSV Dosyası Yükleme</h3>
               <p className="text-sm text-gray-500 mb-4">Kaydettiğiniz CSV dosyasını (UTF-8 formatında) yükleme alanından yükleyiniz.</p>
@@ -283,7 +322,7 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categorie
           ) : (
             <button onClick={handleUpload} disabled={isUploading || !file} className="bg-[#0b1b36] hover:bg-black text-white px-10 py-3 rounded-lg text-sm font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-2 disabled:opacity-50">
               {isUploading ? (
-                <>Yükleniyor...</>
+                <>{t.loadingData}</>
               ) : (
                 <>
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -309,6 +348,7 @@ function SingleQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categor
   const [correctAnswer, setCorrectAnswer] = useState("A");
   const [tfAnswer, setTfAnswer] = useState("T");
   const [categoryName, setCategoryName] = useState("");
+  const [examType, setExamType] = useState("");
   
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
@@ -331,7 +371,27 @@ function SingleQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categor
     try {
       let fileText = "";
       let format = "gift";
-      const escapedQuestionText = questionText.replace(/~/g, "\\~").replace(/=/g, "\\=").replace(/{/g, "\\{").replace(/}/g, "\\}");
+      
+      // Otomatik dönem hesaplama
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1; // 1-12
+      let term = "";
+      if (month >= 9 || month <= 1) {
+         const endYear = month <= 1 ? year : year + 1;
+         const startYear = month <= 1 ? year - 1 : year;
+         term = `${startYear}-${endYear} Güz`;
+      } else {
+         term = `${year - 1}-${year} Bahar`;
+      }
+
+      let tags = `[Dönem: ${term}]`;
+      if (examType) {
+         tags += ` [Sınav: ${examType}]`;
+      }
+
+      const finalQuestionText = `${tags} ${questionText}`;
+      const escapedQuestionText = finalQuestionText.replace(/~/g, "\\~").replace(/=/g, "\\=").replace(/{/g, "\\{").replace(/}/g, "\\}");
 
       if (questionType === "Çoktan Seçmeli") {
         fileText = `::Yeni Soru:: ${escapedQuestionText} {`;
@@ -429,7 +489,18 @@ function SingleQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categor
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Soru Metni <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Sınav Türü (İsteğe Bağlı)</label>
+            <select value={examType} onChange={(e) => setExamType(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Sınav Türü Seçiniz</option>
+              <option value="Vize">Vize</option>
+              <option value="Final">{t.finalExam}</option>
+              <option value="Bütünleme">Bütünleme</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">{t.questionText}<span className="text-red-500">*</span></label>
             <textarea rows="4" value={questionText} onChange={(e) => setQuestionText(e.target.value)}
               placeholder="Sorunuzu buraya yazın..."
               className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
@@ -491,6 +562,7 @@ function SingleQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categor
 }
 
 export default function TeacherQuestionBank() {
+  const { t } = useLanguage();
   // const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
@@ -623,10 +695,12 @@ export default function TeacherQuestionBank() {
 
     try {
         const limitfrom = (pageNumber - 1) * QUESTIONS_PER_PAGE;
+        const hasLocalFilters = filters.term || filters.exam || filters.questionText;
+        
         const payload = {
             courseid: targetCourseId,
-            limitfrom: limitfrom,
-            limitnum: QUESTIONS_PER_PAGE
+            limitfrom: hasLocalFilters ? 0 : limitfrom,
+            limitnum: hasLocalFilters ? 10000 : QUESTIONS_PER_PAGE
         };
         
         if (filters.category) {
@@ -637,15 +711,33 @@ export default function TeacherQuestionBank() {
         
         if (data.exception) {
             showAlert("Hata: " + data.message);
-        } else if (data && data.questions) {
-            setUploadedQuestions(data.questions);
-            setTotalQuestions(data.totalcount || 0);
-            setCurrentPage(pageNumber);
-        } else if (Array.isArray(data)) {
-            // Fallback for older plugin version
-            setUploadedQuestions(data);
-            setTotalQuestions(data.length);
-            setCurrentPage(1);
+        } else {
+            let questionsList = data.questions || (Array.isArray(data) ? data : []);
+            
+            if (hasLocalFilters) {
+               // Frontend filtreleme işlemi
+               questionsList = questionsList.filter(q => {
+                  let match = true;
+                  const qText = (q.name || "") + " " + (q.questiontext || "");
+                  
+                  if (filters.term && !qText.includes(`[Dönem: ${filters.term}]`)) match = false;
+                  if (filters.exam && !qText.includes(`[Sınav: ${filters.exam}]`)) match = false;
+                  if (filters.questionText && !qText.toLowerCase().includes(filters.questionText.toLowerCase())) match = false;
+                  return match;
+               });
+               
+               const totalLocal = questionsList.length;
+               setTotalQuestions(totalLocal);
+               
+               // Manuel sayfalama
+               questionsList = questionsList.slice(limitfrom, limitfrom + QUESTIONS_PER_PAGE);
+               setUploadedQuestions(questionsList);
+               setCurrentPage(pageNumber);
+            } else {
+               setUploadedQuestions(questionsList);
+               setTotalQuestions(data.totalcount || questionsList.length);
+               setCurrentPage(pageNumber);
+            }
         }
     } catch(e) {
         showAlert("Soru getirme hatası: " + e.message);
@@ -753,9 +845,7 @@ export default function TeacherQuestionBank() {
       <main className="max-w-350 mx-auto p-8 relative">
         {/* Başlık ve Üst Butonlar */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
-            Soru Bankası
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-800 tracking-tight">{t.questionBankTitle}</h1>
 
           <div className="flex items-center gap-3">
             <button 
@@ -775,9 +865,7 @@ export default function TeacherQuestionBank() {
                   strokeWidth={2}
                   d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
-              </svg>
-              Çoklu Soru Ekle
-            </button>
+              </svg>{t.addMultipleQuestions}</button>
             <button 
               onClick={() => setIsSingleAddOpen(true)}
               className="bg-[#0b1b36] hover:bg-[#1a2b4c] text-white px-5 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-2 shadow-sm"
@@ -803,7 +891,7 @@ export default function TeacherQuestionBank() {
                 onChange={handleFilterChange}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none bg-white"
               >
-                <option value="">Ders Seçiniz</option>
+                <option value="">{t.selectCourse}</option>
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.fullname}
@@ -814,9 +902,7 @@ export default function TeacherQuestionBank() {
 
             {/* Kategori */}
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                Konu / Kategori
-              </label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">{t.topicCategory}</label>
               <select
                 name="category"
                 value={filters.category}
@@ -843,9 +929,9 @@ export default function TeacherQuestionBank() {
                 onChange={handleFilterChange}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none bg-white"
               >
-                <option value="">Dönem Seçiniz</option>
-                <option value="guz_2026">2026-2027 Güz</option>
-                <option value="bahar_2026">2025-2026 Bahar</option>
+                <option value="">{t.selectTerm}</option>
+                <option value="2026-2027 Güz">2026-2027 Güz</option>
+                <option value="2025-2026 Bahar">2025-2026 Bahar</option>
               </select>
             </div>
 
@@ -860,25 +946,23 @@ export default function TeacherQuestionBank() {
                 onChange={handleFilterChange}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none bg-white"
               >
-                <option value="">Sınav Seçiniz</option>
-                <option value="vize">Vize</option>
-                <option value="final">Final</option>
-                <option value="butunleme">Bütünleme</option>
+                <option value="">{t.selectExam}</option>
+                <option value="Vize">Vize</option>
+                <option value="Final">{t.finalExam}</option>
+                <option value="Bütünleme">Bütünleme</option>
               </select>
             </div>
           </div>
 
           {/* Soru Metni Input */}
           <div className="mb-6">
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-              Soru Metni
-            </label>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">{t.questionText}</label>
             <input
               type="text"
               name="questionText"
               value={filters.questionText}
               onChange={handleFilterChange}
-              placeholder="Aranacak kelimeyi giriniz..."
+              placeholder={t.enterWordToSearch}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
@@ -888,9 +972,7 @@ export default function TeacherQuestionBank() {
             <button
               onClick={handleClearFilters}
               className="bg-[#0b1b36] hover:bg-[#1a2b4c] text-white px-6 py-2 rounded-md text-sm font-semibold transition-colors shadow-sm"
-            >
-              Temizle
-            </button>
+            >{t.clearBtn}</button>
             <button
               onClick={() => handleSearch(1)}
               disabled={isSearching}
@@ -915,8 +997,7 @@ export default function TeacherQuestionBank() {
 
         {/* Detaylı Arama Etiketi */}
         <div className="flex justify-end mb-8">
-          <button className="bg-gray-100 text-gray-500 text-xs font-medium px-4 py-1.5 rounded-b-lg border-x border-b border-gray-200 flex items-center gap-1 hover:bg-gray-200 transition-colors">
-            Detaylı Arama <span className="font-bold">↓</span>
+          <button className="bg-gray-100 text-gray-500 text-xs font-medium px-4 py-1.5 rounded-b-lg border-x border-b border-gray-200 flex items-center gap-1 hover:bg-gray-200 transition-colors">{t.detailedSearchTitle}<span className="font-bold">↓</span>
           </button>
         </div>
 
@@ -961,7 +1042,7 @@ export default function TeacherQuestionBank() {
                         className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
                       />
                     </th>
-                    <th className="p-4 font-bold text-gray-700">Soru Metni</th>
+                    <th className="p-4 font-bold text-gray-700">{t.questionText}</th>
                     <th className="p-4 w-32 font-bold text-gray-700">Soru Tipi</th>
                     <th className="p-4 w-24 text-center font-bold text-gray-700">İşlem</th>
                   </tr>
@@ -1041,9 +1122,7 @@ export default function TeacherQuestionBank() {
                 <path d="M85 15 L95 20 M88 25 L98 25 M85 35 L95 30" stroke="#cbd5e1" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </div>
-            <p className="text-gray-700 font-semibold text-lg">
-              Filtreleme yaparak soruları listeleyebilirsiniz
-            </p>
+            <p className="text-gray-700 font-semibold text-lg">{t.filterQuestionsHelper}</p>
           </div>
         )}
       </main>

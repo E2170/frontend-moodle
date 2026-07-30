@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { useLanguage } from "./LanguageContext";
 import { moodlePost } from "./moodleApi";
 import akuzemLogo from "./assets/akuzem-lg.png";
 
 const ProfileModal = ({ isOpen, onClose, userInfo, token }) => {
+  const { t } = useLanguage();
   const [fullProfile, setFullProfile] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -69,7 +71,7 @@ const ProfileModal = ({ isOpen, onClose, userInfo, token }) => {
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">E-posta</span>
+                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{t.email}</span>
                       <span className="text-[14px] font-medium text-gray-700">{profile.email}</span>
                     </div>
                   </div>
@@ -80,7 +82,7 @@ const ProfileModal = ({ isOpen, onClose, userInfo, token }) => {
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Telefon</span>
+                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{t.phone}</span>
                       <span className="text-[14px] font-medium text-gray-700">{profile.phone1}</span>
                     </div>
                   </div>
@@ -91,7 +93,7 @@ const ProfileModal = ({ isOpen, onClose, userInfo, token }) => {
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Departman</span>
+                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{t.department}</span>
                       <span className="text-[14px] font-medium text-gray-700">{profile.department}</span>
                     </div>
                   </div>
@@ -102,7 +104,7 @@ const ProfileModal = ({ isOpen, onClose, userInfo, token }) => {
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Şehir</span>
+                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{t.city}</span>
                       <span className="text-[14px] font-medium text-gray-700">{profile.city}{profile.country ? `, ${profile.country}` : ''}</span>
                     </div>
                   </div>
@@ -131,6 +133,7 @@ export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const { userInfo, loading, logout, userRole, token } = useAuth();
+  const { language, setLanguage, t } = useLanguage();
 
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -176,8 +179,8 @@ export default function Header() {
       }
     };
     fetchRecentMessages();
-    // Poll every 30 seconds
-    const interval = setInterval(fetchRecentMessages, 30000);
+    // Poll every 2 minutes
+    const interval = setInterval(fetchRecentMessages, 120000);
     return () => clearInterval(interval);
   }, [userInfo]);
 
@@ -290,17 +293,17 @@ export default function Header() {
   };
 
   const navItems = userRole === "teacher" ? [
-    { label: "Anasayfa", path: "/teacher-dashboard", activePath: "/teacher-dashboard" },
-    { label: "Derslerim", path: "/teacher-courses", activePath: "/teacher-courses" },
-    { label: "Raporlar", path: "/teacher-reports", activePath: "/teacher-reports" },
-    { label: "Dosyalarım", path: "/teacher-files", activePath: "/teacher-files" },
-    { label: "Takvim", path: "/teacher-calendar", activePath: "/teacher-calendar" },
-    { label: "Soru Bankası", path: "/teacher-question-bank", activePath: "/teacher-question-bank" },
+    { label: t.home, path: "/teacher-dashboard", activePath: "/teacher-dashboard" },
+    { label: t.myCourses, path: "/teacher-courses", activePath: "/teacher-courses" },
+    { label: t.reports, path: "/teacher-reports", activePath: "/teacher-reports" },
+    { label: t.myFiles, path: "/teacher-files", activePath: "/teacher-files" },
+    { label: t.calendar, path: "/teacher-calendar", activePath: "/teacher-calendar" },
+    { label: t.questionBank, path: "/teacher-question-bank", activePath: "/teacher-question-bank" },
   ] : [
-    { label: "Anasayfa", path: "/dashboard", activePath: "/dashboard" },
-    { label: "Derslerim", path: "/mycourse", activePath: "/mycourse" },
-    { label: "Not Çizelgem", path: "/grades", activePath: "/grades" },
-    { label: "Takvim", path: "/calendar", activePath: "/calendar" },
+    { label: t.home, path: "/dashboard", activePath: "/dashboard" },
+    { label: t.myCourses, path: "/mycourse", activePath: "/mycourse" },
+    { label: t.grades, path: "/grades", activePath: "/grades" },
+    { label: t.calendar, path: "/calendar", activePath: "/calendar" },
   ];
 
   return (
@@ -353,7 +356,7 @@ export default function Header() {
               onClick={(e) => toggleDropdown('communication', e)}
               className={`relative cursor-pointer h-full flex items-center px-4 font-semibold transition-colors ${(isActive("/messages") || isActive("/announcements") || isActive("/forum") || isActive("/help")) ? "bg-[#2d3246] text-white" : "text-[#9ca3af] hover:text-white"}`}
             >
-              İletişim Araçları 
+              {t.communicationTools} 
               <svg className={`w-4 h-4 ml-1 transition-transform ${activeDropdown === 'communication' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
               
               {activeDropdown === 'communication' && (
@@ -362,10 +365,10 @@ export default function Header() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex flex-col">
-                    <button onClick={() => { navigate('/messages'); setActiveDropdown(null); }} className="text-left px-5 py-3 hover:bg-gray-50 text-[15px] font-normal transition-colors text-black w-full">Mesajlar</button>
-                    <button onClick={() => { navigate('/announcements'); setActiveDropdown(null); }} className="text-left px-5 py-3 hover:bg-gray-50 text-[15px] font-normal transition-colors text-black w-full">Duyurular</button>
-                    <button onClick={() => { navigate('/forum'); setActiveDropdown(null); }} className="text-left px-5 py-3 hover:bg-gray-50 text-[15px] font-normal transition-colors text-black w-full">Forum</button>
-                    <button onClick={() => { navigate('/help'); setActiveDropdown(null); }} className="text-left px-5 py-3 hover:bg-gray-50 text-[15px] font-normal transition-colors text-black w-full">Yardım</button>
+                    <button onClick={() => { navigate('/messages'); setActiveDropdown(null); }} className="text-left px-5 py-3 hover:bg-gray-50 text-[15px] font-normal transition-colors text-black w-full">{t.messages}</button>
+                    <button onClick={() => { navigate('/announcements'); setActiveDropdown(null); }} className="text-left px-5 py-3 hover:bg-gray-50 text-[15px] font-normal transition-colors text-black w-full">{t.announcements}</button>
+                    <button onClick={() => { navigate('/forum'); setActiveDropdown(null); }} className="text-left px-5 py-3 hover:bg-gray-50 text-[15px] font-normal transition-colors text-black w-full">{t.forum}</button>
+                    <button onClick={() => { navigate('/help'); setActiveDropdown(null); }} className="text-left px-5 py-3 hover:bg-gray-50 text-[15px] font-normal transition-colors text-black w-full">{t.help}</button>
                   </div>
                 </div>
               )}
@@ -490,22 +493,25 @@ export default function Header() {
 
           {/* Language Dropdown */}
           <div className="relative h-full hidden md:flex items-center">
-            <button onClick={(e) => toggleDropdown('language', e)} className="w-[28px] h-[28px] bg-[#d32f2f] rounded-full flex items-center justify-center text-[11px] font-bold border-[1.5px] border-white shadow-sm cursor-pointer uppercase text-white hover:opacity-90 transition-opacity">
-              TR
+            <button 
+              onClick={(e) => toggleDropdown('language', e)} 
+              className={`w-[28px] h-[28px] ${language === 'en' ? 'bg-[#1976d2]' : language === 'ar' ? 'bg-[#388e3c]' : 'bg-[#d32f2f]'} rounded-full flex items-center justify-center text-[11px] font-bold border-[1.5px] border-white shadow-sm cursor-pointer uppercase text-white hover:opacity-90 transition-opacity`}
+            >
+              {language.toUpperCase()}
             </button>
             {activeDropdown === 'language' && (
               <div className="absolute top-[60px] right-0 bg-white text-[#495057] w-[180px] rounded-[14px] shadow-[0_5px_20px_rgba(0,0,0,0.15)] py-2 px-2 z-[100] border border-gray-100 cursor-default" onClick={(e) => e.stopPropagation()}>
                 <div className="absolute -top-[6px] right-[14px] w-3 h-3 bg-[#e9ecef] rotate-45 border-l border-t border-gray-100"></div>
                 <div className="flex flex-col gap-1 relative z-10">
-                  <button className="flex items-center gap-3 w-full bg-[#e9ecef] py-2 px-3 rounded-full transition-colors">
+                  <button onClick={() => { setLanguage('tr'); setActiveDropdown(null); }} className={`flex items-center gap-3 w-full py-2 px-3 rounded-full transition-colors ${language === 'tr' ? 'bg-[#e9ecef]' : 'hover:bg-gray-50'}`}>
                     <div className="w-[22px] h-[22px] bg-[#d32f2f] rounded-full flex items-center justify-center text-[9px] text-white font-bold border border-white shadow-sm">TR</div>
                     <span className="text-[14px] font-medium text-[#495057]">Türkçe</span>
                   </button>
-                  <button className="flex items-center gap-3 w-full hover:bg-gray-50 py-2 px-3 rounded-full transition-colors">
+                  <button onClick={() => { setLanguage('en'); setActiveDropdown(null); }} className={`flex items-center gap-3 w-full py-2 px-3 rounded-full transition-colors ${language === 'en' ? 'bg-[#e9ecef]' : 'hover:bg-gray-50'}`}>
                     <div className="w-[22px] h-[22px] bg-[#1976d2] rounded-full flex items-center justify-center text-[9px] text-white font-bold border border-white shadow-sm">EN</div>
                     <span className="text-[14px] font-medium text-[#495057]">English</span>
                   </button>
-                  <button className="flex items-center gap-3 w-full hover:bg-gray-50 py-2 px-3 rounded-full transition-colors">
+                  <button onClick={() => { setLanguage('ar'); setActiveDropdown(null); }} className={`flex items-center gap-3 w-full py-2 px-3 rounded-full transition-colors ${language === 'ar' ? 'bg-[#e9ecef]' : 'hover:bg-gray-50'}`}>
                     <div className="w-[22px] h-[22px] bg-[#388e3c] rounded-full flex items-center justify-center text-[9px] text-white font-bold border border-white shadow-sm">AR</div>
                     <span className="text-[14px] font-medium text-[#495057]">عربي</span>
                   </button>
@@ -560,7 +566,7 @@ export default function Header() {
                     <span className="text-[15px] font-medium text-[#495057] uppercase leading-tight group-hover:text-[#0074b6] transition-colors truncate">
                       {loading ? "..." : userInfo?.fullname}
                     </span>
-                    <span className="text-[13px] text-[#0074b6] mt-0.5 font-medium group-hover:underline">Profili Görüntüle</span>
+                    <span className="text-[13px] text-[#0074b6] mt-0.5 font-medium group-hover:underline">{t.profile}</span>
                   </div>
                 </div>
 
@@ -589,14 +595,14 @@ export default function Header() {
                     className="flex items-center gap-3 w-full bg-[#e9ecef] hover:bg-[#dde2e6] py-2.5 px-4 rounded-full transition-colors group"
                   >
                     <div className="w-[22px] h-[22px] bg-black rounded-full flex items-center justify-center text-white text-[12px] font-bold shrink-0">?</div>
-                    <span className="text-[15px] font-medium text-[#495057] group-hover:text-black">Yardım</span>
+                    <span className="text-[15px] font-medium text-[#495057] group-hover:text-black">{t.help}</span>
                   </button>
                   <button 
                     onClick={() => { logout(); navigate("/"); setActiveDropdown(null); }}
                     className="flex items-center gap-3 w-full bg-[#e9ecef] hover:bg-[#dde2e6] py-2.5 px-4 rounded-full transition-colors group"
                   >
                     <svg className="w-[22px] h-[22px] text-black shrink-0 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                    <span className="text-[15px] font-medium text-[#495057] group-hover:text-black">Oturumu Kapat</span>
+                    <span className="text-[15px] font-medium text-[#495057] group-hover:text-black">{t.logout}</span>
                   </button>
                 </div>
               </div>
@@ -620,20 +626,20 @@ export default function Header() {
             ))}
             
             <div className="border-t border-white/10 pt-2 mt-2">
-              <span className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider block">İletişim Araçları</span>
-              <button onClick={() => { navigate('/messages'); setMobileMenuOpen(false); }} className="text-left w-full py-2.5 px-4 rounded-lg text-[#9ca3af] hover:bg-white/5 hover:text-white transition-colors">Mesajlar</button>
-              <button onClick={() => { navigate('/announcements'); setMobileMenuOpen(false); }} className="text-left w-full py-2.5 px-4 rounded-lg text-[#9ca3af] hover:bg-white/5 hover:text-white transition-colors">Duyurular</button>
-              <button onClick={() => { navigate('/forum'); setMobileMenuOpen(false); }} className="text-left w-full py-2.5 px-4 rounded-lg text-[#9ca3af] hover:bg-white/5 hover:text-white transition-colors">Forum</button>
-              <button onClick={() => { navigate('/help'); setMobileMenuOpen(false); }} className="text-left w-full py-2.5 px-4 rounded-lg text-[#9ca3af] hover:bg-white/5 hover:text-white transition-colors">Yardım</button>
+              <span className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider block">{t.communicationTools}</span>
+              <button onClick={() => { navigate('/messages'); setMobileMenuOpen(false); }} className="text-left w-full py-2.5 px-4 rounded-lg text-[#9ca3af] hover:bg-white/5 hover:text-white transition-colors">{t.messages}</button>
+              <button onClick={() => { navigate('/announcements'); setMobileMenuOpen(false); }} className="text-left w-full py-2.5 px-4 rounded-lg text-[#9ca3af] hover:bg-white/5 hover:text-white transition-colors">{t.announcements}</button>
+              <button onClick={() => { navigate('/forum'); setMobileMenuOpen(false); }} className="text-left w-full py-2.5 px-4 rounded-lg text-[#9ca3af] hover:bg-white/5 hover:text-white transition-colors">{t.forum}</button>
+              <button onClick={() => { navigate('/help'); setMobileMenuOpen(false); }} className="text-left w-full py-2.5 px-4 rounded-lg text-[#9ca3af] hover:bg-white/5 hover:text-white transition-colors">{t.help}</button>
             </div>
             
             {/* Mobile Language Switcher */}
             <div className="border-t border-white/10 pt-2 mt-2 flex gap-3 px-4 py-2">
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center">Dil:</span>
               <div className="flex gap-2">
-                <button className="w-[28px] h-[28px] bg-[#d32f2f] rounded-full flex items-center justify-center text-[11px] font-bold border-[1.5px] border-white shadow-sm cursor-pointer uppercase text-white">TR</button>
-                <button className="w-[28px] h-[28px] bg-[#1976d2] rounded-full flex items-center justify-center text-[11px] font-bold border-[1.5px] border-transparent shadow-sm cursor-pointer uppercase text-white opacity-70 hover:opacity-100">EN</button>
-                <button className="w-[28px] h-[28px] bg-[#388e3c] rounded-full flex items-center justify-center text-[11px] font-bold border-[1.5px] border-transparent shadow-sm cursor-pointer uppercase text-white opacity-70 hover:opacity-100">AR</button>
+                <button onClick={() => setLanguage('tr')} className={`w-[28px] h-[28px] bg-[#d32f2f] rounded-full flex items-center justify-center text-[11px] font-bold border-[1.5px] shadow-sm cursor-pointer uppercase text-white transition-opacity ${language === 'tr' ? 'border-white opacity-100' : 'border-transparent opacity-70 hover:opacity-100'}`}>TR</button>
+                <button onClick={() => setLanguage('en')} className={`w-[28px] h-[28px] bg-[#1976d2] rounded-full flex items-center justify-center text-[11px] font-bold border-[1.5px] shadow-sm cursor-pointer uppercase text-white transition-opacity ${language === 'en' ? 'border-white opacity-100' : 'border-transparent opacity-70 hover:opacity-100'}`}>EN</button>
+                <button onClick={() => setLanguage('ar')} className={`w-[28px] h-[28px] bg-[#388e3c] rounded-full flex items-center justify-center text-[11px] font-bold border-[1.5px] shadow-sm cursor-pointer uppercase text-white transition-opacity ${language === 'ar' ? 'border-white opacity-100' : 'border-transparent opacity-70 hover:opacity-100'}`}>AR</button>
               </div>
             </div>
           </div>
