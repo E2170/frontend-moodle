@@ -47,7 +47,6 @@ export const translations = {
     activeCourses: "Aktif Dersler",
     upcomingEvents: "Yaklaşan Etkinlikler",
     recentActivities: "Son Aktiviteler",
-    viewAll: "Tümünü Gör",
 
     // General
     loading: "Yükleniyor...",
@@ -77,7 +76,6 @@ export const translations = {
     passive: "Pasif",
     exam: "Sınav",
     assignment: "Ödev",
-    forum: "Forum",
     announcement: "Duyuru",
     details: "Detaylar",
     noContent: "İçerik bulunamadı.",
@@ -144,7 +142,6 @@ export const translations = {
     message: "Mesaj",
     sendMessage: "Mesaj Gönder",
     examType: "Sınav",
-    date: "Tarih",
     completed: "Tamamlandı",
     addNewBtn: "Yeni Ekle",
     assignmentType: "Ödev",
@@ -243,7 +240,6 @@ export const translations = {
     activeCourses: "Active Courses",
     upcomingEvents: "Upcoming Events",
     recentActivities: "Recent Activities",
-    viewAll: "View All",
 
     // General
     loading: "Loading...",
@@ -273,7 +269,6 @@ export const translations = {
     passive: "Passive",
     exam: "Exam",
     assignment: "Assignment",
-    forum: "Forum",
     announcement: "Announcement",
     details: "Details",
     noContent: "No content found.",
@@ -340,7 +335,6 @@ export const translations = {
     message: "Message",
     sendMessage: "Send Message",
     examType: "Exam",
-    date: "Date",
     completed: "Completed",
     addNewBtn: "Add New",
     assignmentType: "Assignment",
@@ -439,7 +433,6 @@ export const translations = {
     activeCourses: "الدورات النشطة",
     upcomingEvents: "الأحداث القادمة",
     recentActivities: "الأنشطة الأخيرة",
-    viewAll: "عرض الكل",
 
     // General
     loading: "جاري التحميل...",
@@ -469,7 +462,6 @@ export const translations = {
     passive: "غير نشط",
     exam: "اختبار",
     assignment: "واجب",
-    forum: "منتدى",
     announcement: "إعلان",
     details: "التفاصيل",
     noContent: "لم يتم العثور على محتوى.",
@@ -536,7 +528,6 @@ export const translations = {
     message: "رسالة",
     sendMessage: "إرسال رسالة",
     examType: "اختبار",
-    date: "التاريخ",
     completed: "مكتمل",
     addNewBtn: "إضافة جديد",
     assignmentType: "واجب",

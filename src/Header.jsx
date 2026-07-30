@@ -241,7 +241,7 @@ export default function Header() {
     try {
       await moodlePost(tokenStr, "core_message_mark_notification_read", {
         notificationid: notif.id,
-        timeread: Math.floor(Date.now() / 1000)
+        timeread: Math.floor(new Date().getTime() / 1000)
       });
     } catch (err) {
       console.error("Mark single notif read error", err);
@@ -288,7 +288,7 @@ export default function Header() {
     }
     
     if (notif.contexturl) {
-        window.location.href = notif.contexturl;
+        window.location.assign(notif.contexturl);
     }
   };
 

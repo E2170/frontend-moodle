@@ -356,6 +356,7 @@ export default function TeacherFiles() {
 }
 
 function GlobalUploadModal({ onClose, courses, onSaved }) {
+  const { t } = useLanguage();
   const [file, setFile] = useState(null);
   const [selectedCourse, setSelectedCourse] = useState("");
   const [submitting, setSubmitting] = useState(false);

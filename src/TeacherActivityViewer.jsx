@@ -47,6 +47,7 @@ const Spinner = ({ text = "Yükleniyor..." }) => (
 // ASSIGN — Öğrenci Gönderimleri + Not Verme
 // ─────────────────────────────────────────────
 function TeacherAssignViewer({ mod, token, courseId }) {
+  const { t } = useLanguage();
   const [assignment, setAssignment] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [users, setUsers] = useState({});
@@ -220,6 +221,7 @@ function TeacherAssignViewer({ mod, token, courseId }) {
 // QUIZ — Sınav Sonuçları
 // ─────────────────────────────────────────────
 function TeacherQuizViewer({ mod, token, courseId }) {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [quiz, setQuiz] = useState(null);
   const [users, setUsers] = useState([]);
@@ -578,6 +580,7 @@ function TeacherQuizViewer({ mod, token, courseId }) {
 // RESOURCE — Dosya görüntüle / güncelle
 // ─────────────────────────────────────────────
 function TeacherResourceViewer({ mod, token }) {
+  const { t } = useLanguage();
   const files = (mod.contents || []).filter(f => f.filename !== "index.html");
 
   return (
@@ -655,6 +658,7 @@ function TeacherUrlViewer({ mod }) {
 // FORUM — Tartışma Yönetimi
 // ─────────────────────────────────────────────
 function TeacherForumViewer({ mod, token }) {
+  const { t } = useLanguage();
   const [discussions, setDiscussions] = useState([]);
   const [expanded, setExpanded] = useState(null);
   const [posts, setPosts] = useState({});
@@ -820,6 +824,7 @@ function TeacherForumViewer({ mod, token }) {
 // PAGE — Sayfa İçeriği Görüntüle
 // ─────────────────────────────────────────────
 function TeacherPageViewer({ mod, token, courseId }) {
+  const { t } = useLanguage();
   const [content, setContent] = useState(null);
   const [loading, setLoading] = useState(true);
   
@@ -845,6 +850,7 @@ function TeacherPageViewer({ mod, token, courseId }) {
 // BigBlueButtonViewer
 // ─────────────────────────────────────────────
 function TeacherBigBlueButtonViewer({ mod, token }) {
+  const { t } = useLanguage();
   const { userInfo } = useAuth();
   const [joining, setJoining] = useState(false);
   const [meetingInfo, setMeetingInfo] = useState(null);
@@ -1024,6 +1030,7 @@ function TeacherBigBlueButtonViewer({ mod, token }) {
 // CHOICE — Anket Sonuçları (Öğretmen)
 // ─────────────────────────────────────────────
 function TeacherChoiceViewer({ mod, token }) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [expanded, setExpanded] = useState(null); // hangi seçeneğin öğrenci listesi açık
@@ -1158,6 +1165,7 @@ function TeacherChoiceViewer({ mod, token }) {
 // GENERIC fallback — Moodle'a yönlendirme YOK
 // ─────────────────────────────────────────────
 function TeacherGenericViewer({ mod }) {
+  const { t } = useLanguage();
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm text-center">
       <div className="text-5xl mb-4">📌</div>

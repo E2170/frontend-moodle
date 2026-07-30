@@ -54,12 +54,15 @@ const getMimeIcon = (mime) => {
 // ─────────────────────────────────────────────
 // Shared UI
 // ─────────────────────────────────────────────
-const LoadingSpinner = () => (
-  <div className="flex flex-col items-center justify-center py-20 gap-3">
-    <div className="w-8 h-8 border-4 border-gray-200 border-t-[#495057] rounded-full animate-spin" />
-    <span className="text-[13px] text-gray-400">{t.loadingData}</span>
-  </div>
-);
+const LoadingSpinner = () => {
+  const { t } = useLanguage();
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3">
+      <div className="w-8 h-8 border-4 border-gray-200 border-t-[#495057] rounded-full animate-spin" />
+      <span className="text-[13px] text-gray-400">{t.loadingData}</span>
+    </div>
+  );
+};
 
 const modMeta = {
   assign:         { icon: "📝", bg: "bg-blue-100",   text: "text-blue-600",   label: "Ödev" },
@@ -97,6 +100,7 @@ const SectionHeader = ({ mod }) => {
 // ASSIGN (Ödev)
 // ─────────────────────────────────────────────
 function AssignViewer({ mod, token }) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [assignment, setAssignment] = useState(null);
   const [status, setStatus] = useState(null);
@@ -326,6 +330,7 @@ function AssignViewer({ mod, token }) {
 // QUIZ (Sınav) — Native tam uygulama
 // ─────────────────────────────────────────────
 function QuizViewer({ mod, token, userId, courseId }) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
 const [quiz, setQuiz] = useState(null);
   const [attempts, setAttempts] = useState([]);
@@ -1048,6 +1053,7 @@ const [quiz, setQuiz] = useState(null);
 // RESOURCE (Dosya)
 // ─────────────────────────────────────────────
 function ResourceViewer({ mod, token }) {
+  const { t } = useLanguage();
   const files = (mod.contents || []).filter(f => f.filename !== "index.html");
 
   return (
@@ -1107,6 +1113,7 @@ function ResourceViewer({ mod, token }) {
 // URL (Bağlantı)
 // ─────────────────────────────────────────────
 function UrlViewer({ mod }) {
+  const { t } = useLanguage();
   const externalUrl = mod.contents?.[0]?.fileurl || mod.url || "";
   return (
     <div className="space-y-4">
@@ -1133,6 +1140,7 @@ function UrlViewer({ mod }) {
 // PAGE (Sayfa)
 // ─────────────────────────────────────────────
 function PageViewer({ mod, token, courseId }) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState(null);
   
@@ -1163,6 +1171,7 @@ function PageViewer({ mod, token, courseId }) {
 // LABEL (Etiket)
 // ─────────────────────────────────────────────
 function LabelViewer({ mod }) {
+  const { t } = useLanguage();
   return (
     <div className="space-y-4">
       <SectionHeader mod={mod} />
@@ -1211,6 +1220,7 @@ function FolderViewer({ mod, token }) {
 // FORUM
 // ─────────────────────────────────────────────
 function ForumViewer({ mod, token }) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [discussions, setDiscussions] = useState([]);
   const [expanded, setExpanded] = useState(null);
@@ -1721,6 +1731,7 @@ function ScormViewer({ mod, token }) {
 // GLOSSARY (Sözlük)
 // ─────────────────────────────────────────────
 function GlossaryViewer({ mod, token }) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState([]);
     const [search, setSearch] = useState("");
@@ -1880,6 +1891,7 @@ function BookViewer({ mod, token, courseId }) {
 // WIKI
 // ─────────────────────────────────────────────
 function WikiViewer({ mod, token, courseId }) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [pages, setPages] = useState([]);
   const [activePage, setActivePage] = useState(null);
@@ -1967,6 +1979,7 @@ function WikiViewer({ mod, token, courseId }) {
 // BigBlueButtonViewer
 // ─────────────────────────────────────────────
 function BigBlueButtonViewer({ mod, token, userId }) {
+  const { t } = useLanguage();
   const [joining, setJoining] = useState(false);
   const [meetingInfo, setMeetingInfo] = useState(null);
   const [recordings, setRecordings] = useState([]);
@@ -2153,6 +2166,7 @@ function BigBlueButtonViewer({ mod, token, userId }) {
 // GENERIC fallback (Moodle'a yönlendirmez)
 // ─────────────────────────────────────────────
 function GenericViewer({ mod }) {
+  const { t } = useLanguage();
   return (
     <div className="space-y-4">
       <SectionHeader mod={mod} />

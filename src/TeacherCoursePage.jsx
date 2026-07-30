@@ -12,6 +12,7 @@ import { moodlePost } from "./moodleApi";
 // YouTube Özel Ekleme Modalı
 // ─────────────────────────────────────────────
 function YoutubeFormModal({ sectionNum, courseId, token, onClose, onSaved }) {
+  const { t } = useLanguage();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -106,6 +107,7 @@ function YoutubeFormModal({ sectionNum, courseId, token, onClose, onSaved }) {
 // Aktivite Ekleme — Arka Planda Parametre Çekme (Native UI)
 // ─────────────────────────────────────────────
 function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSaved }) {
+  const { t } = useLanguage();
   const now = new Date();
   const tzOffset = now.getTimezoneOffset() * 60000;
   const localISOTime = (new Date(now - tzOffset)).toISOString().slice(0, 16);

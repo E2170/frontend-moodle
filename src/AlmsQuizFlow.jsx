@@ -126,6 +126,7 @@ export function AlmsQuizActivityModal({ onClose, onSaveActivity }) {
 
 
 export function AlmsSessionWizard({ onClose, onComplete, initialName }) {
+  const { t } = useLanguage();
   const [step, setStep] = useState(1);
   const [sessionInfo, setSessionInfo] = useState({ name: initialName || "sınav", start: "2026-07-09T12:00", end: "2026-07-10T11:00" });
   const [selectedQuestions, setSelectedQuestions] = useState([]);

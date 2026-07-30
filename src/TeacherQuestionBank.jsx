@@ -8,6 +8,7 @@ import { moodlePost } from "./moodleApi";
 // Çoklu Soru Ekleme Paneli (Sağdan Açılan Modal)
 // ─────────────────────────────────────────────
 function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categories }) {
+  const { t } = useLanguage();
   const [file, setFile] = useState(null);
   const [stats, setStats] = useState({ total: 0, valid: 0, invalid: 0 });
   const [isUploading, setIsUploading] = useState(false);
@@ -342,6 +343,7 @@ function BulkQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categorie
 // Tek Soru Ekleme Paneli (Sağdan Açılan Modal)
 // ─────────────────────────────────────────────
 function SingleQuestionUploadPanel({ onClose, onUploadSuccess, courseId, categories }) {
+  const { t } = useLanguage();
   const [questionText, setQuestionText] = useState("");
   const [questionType, setQuestionType] = useState("Çoktan Seçmeli");
   const [options, setOptions] = useState({ A: "", B: "", C: "", D: "", E: "" });

@@ -76,36 +76,8 @@ export default function Messages() {
     fetchMessages();
   }, [fetchMessages]);
 
-  useEffect(() => {
-    if (conversations.length > 0 && !autoOpened.current && !activeConv) {
-      const targetUserId = openConvId || localStorage.getItem('lastOpenUserId');
-      if (targetUserId) {
-        const conv = conversations.find(c => c.members?.some(m => m.id == targetUserId && m.id !== userInfo.userid));
-        if (conv) {
-          loadConversation(conv);
-          autoOpened.current = true;
-        } else {
-          // If the conversation was deleted previously but they sent a new message,
-          // it might not appear in core_message_get_conversations immediately.
-          // Try to fetch it directly:
-          const token = localStorage.getItem("moodle_token");
-          moodlePost(token, "core_message_get_conversation_between_users", {
-            userid: userInfo.userid,
-            otheruserid: targetUserId,
-            includecontactrequests: 0,
-            includeprivacyinfo: 0
-          }).then(res => {
-            if (res && res.id) {
-              loadConversation(res);
-              autoOpened.current = true;
-            }
-          }).catch(err => console.error("Could not fetch conversation between users", err));
-        }
-      }
-    }
-  }, [conversations, openConvId, activeConv, loadConversation, userInfo.userid]);
-
-  async function loadConversation(conv) {
+  
+  const loadConversation = useCallback(async (conv) => {
     const peer = conv.members?.find(m => m.id !== userInfo.userid);
     
     localStorage.setItem('lastOpenConvId', conv.id);
@@ -199,7 +171,36 @@ export default function Messages() {
     } finally {
       setLoadingMessages(false);
     }
-  };
+  }, [userInfo.userid, token]);
+
+  useEffect(() => {
+    if (conversations.length > 0 && !autoOpened.current && !activeConv) {
+      const targetUserId = openConvId || localStorage.getItem('lastOpenUserId');
+      if (targetUserId) {
+        const conv = conversations.find(c => c.members?.some(m => m.id == targetUserId && m.id !== userInfo.userid));
+        if (conv) {
+          loadConversation(conv);
+          autoOpened.current = true;
+        } else {
+          // If the conversation was deleted previously but they sent a new message,
+          // it might not appear in core_message_get_conversations immediately.
+          // Try to fetch it directly:
+          const token = localStorage.getItem("moodle_token");
+          moodlePost(token, "core_message_get_conversation_between_users", {
+            userid: userInfo.userid,
+            otheruserid: targetUserId,
+            includecontactrequests: 0,
+            includeprivacyinfo: 0
+          }).then(res => {
+            if (res && res.id) {
+              loadConversation(res);
+              autoOpened.current = true;
+            }
+          }).catch(err => console.error("Could not fetch conversation between users", err));
+        }
+      }
+    }
+  }, [conversations, openConvId, activeConv, loadConversation, userInfo.userid]);
 
   const handleReply = async () => {
     if (!replyText.trim() || !activeConv) return;

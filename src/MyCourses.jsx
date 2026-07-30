@@ -63,9 +63,10 @@ export default function MyCourses() {
     return "Bilinmiyor";
   };
 
+  const [currentUnixTime] = useState(() => Math.floor(Date.now() / 1000));
+
   const getCourseStatus = (course) => {
-    const now = Date.now() / 1000;
-    if (course.enddate === 0 || course.enddate > now) {
+    if (course.enddate === 0 || course.enddate > currentUnixTime) {
         return "Aktif";
     }
     return "Pasif";
