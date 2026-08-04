@@ -58,7 +58,16 @@ function YoutubeFormModal({ sectionNum, courseId, token, onClose, onSaved }) {
       }
 
       if (res && (res.status === "success" || res.status === true || res.cmid || res.activityid || res.id)) {
-        if (onSaved) onSaved();
+        if (onSaved) {
+           onSaved({
+              id: res.cmid || Math.floor(Math.random() * 1000000),
+              instance: res.activityid || res.id || Math.floor(Math.random() * 1000000),
+              name: title,
+              modname: "url",
+              section: sectionNum,
+              contents: [{ fileurl: url }]
+           });
+        }
         onClose();
       } else {
         throw new Error("Kayıt yapılamadı.");
@@ -638,13 +647,37 @@ export default function TeacherCoursePage() {
     { id: "youtube",       moodleId: "url",            label: "YouTube",      iconColor: "#ff0000", emoji: <svg width="24" height="24" viewBox="0 0 24 24" fill="#ff0000"><path d="M21.582 6.186a2.628 2.628 0 0 0-1.85-1.85C18.1 3.9 12 3.9 12 3.9s-6.1 0-7.732.436a2.628 2.628 0 0 0-1.85 1.85C2 7.818 2 12 2 12s0 4.182.418 5.814a2.628 2.628 0 0 0 1.85 1.85C5.9 20.1 12 20.1 12 20.1s6.1 0 7.732-.436a2.628 2.628 0 0 0 1.85-1.85C22 16.182 22 12 22 12s0-4.182-.418-5.814zM9.912 15.472V8.528L15.95 12l-6.038 3.472z"/></svg>, desc: "Video veya playlist ekleyin." },
   ];
 
-  const defaultWeeks = Array.from({ length: 16 }, (_, i) => ({ id: `default-${i}`, name: `HAFTA ${i + 1}`, modules: [] }));
-  const displaySections = (sections.length > 0 ? sections : defaultWeeks).map(sec => {
-    if (sec.modules) {
-      return { ...sec, modules: sec.modules.filter(m => !deletedIds.includes(m.id)) };
-    }
-    return sec;
+
+  const [optimisticMods, setOptimisticMods] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem("optimisticMods") || "[]"); } catch(e) { return []; }
   });
+
+  useEffect(() => {
+    sessionStorage.setItem("optimisticMods", JSON.stringify(optimisticMods));
+  }, [optimisticMods]);
+
+  const defaultWeeks = Array.from({ length: 16 }, (_, i) => ({ id: `default-${i}`, name: `HAFTA ${i + 1}`, section: i, modules: [] }));
+  
+  const displaySections = (sections.length > 0 ? sections : defaultWeeks).map(sec => {
+    let mods = sec.modules ? [...sec.modules] : [];
+    // Silinenleri gizle
+    mods = mods.filter(m => !deletedIds.includes(m.id));
+    
+    // Optimistic eklenenleri göster
+    const secNum = sec.section !== undefined ? sec.section : parseInt(sec.id?.toString().replace("default-", "") || "0", 10);
+    const pendingToAdd = optimisticMods.filter(om => Number(om.section) === Number(secNum));
+    
+    pendingToAdd.forEach(pm => {
+       // Eğer gerçek API yanıtı zaten bu isimde ve tipte bir modül barındırıyorsa ekleme (cache düzelmiş demektir)
+       const alreadyExists = mods.some(m => m.name === pm.name && m.modname === pm.modname);
+       if (!alreadyExists) {
+          mods.push(pm);
+       }
+    });
+
+    return { ...sec, modules: mods };
+  });
+
   const activeSection = displaySections.find(s => s.id === activeSectionId) || displaySections[0];
 
   const announcements = sections[0]?.modules?.filter(m => m.modname === 'label' && m.name === 'Duyuru') || [];
@@ -942,7 +975,11 @@ export default function TeacherCoursePage() {
           courseId={courseId}
           token={token}
           onClose={() => setActivityFormModal(null)}
-          onSaved={() => { setActivityFormModal(null); fetchCourseData(); }}
+          onSaved={() => { 
+            setActivityFormModal(null); 
+            showAlert("Aktivite eklendi, liste güncelleniyor...");
+            setTimeout(() => fetchCourseData(), 1500);
+          }}
         />
       )}
 
@@ -952,7 +989,12 @@ export default function TeacherCoursePage() {
           courseId={courseId}
           token={token}
           onClose={() => setYoutubeModalOpen(null)}
-          onSaved={() => { setYoutubeModalOpen(null); fetchCourseData(); }}
+          onSaved={(newMod) => { 
+            if (newMod) setOptimisticMods(prev => [...prev, newMod]);
+            setYoutubeModalOpen(null); 
+            showAlert("YouTube videosu eklendi, liste güncelleniyor...");
+            setTimeout(() => fetchCourseData(), 1500); 
+          }}
         />
       )}
 
