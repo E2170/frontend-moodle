@@ -186,7 +186,16 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
 
         if (!uploadData.status) throw new Error(uploadData.message || "Dosya yüklenemedi.");
         
-        if (onSaved) onSaved(uploadData.cmid);
+        if (onSaved) {
+           onSaved({
+              id: uploadData.cmid || Math.floor(Math.random() * 1000000),
+              instance: uploadData.cmid || Math.floor(Math.random() * 1000000),
+              name: form.name,
+              modname: "resource",
+              section: sectionNum,
+              contents: [{ fileurl: "", filename: selectedFile.name }]
+           });
+        }
         onClose();
         return;
       }
@@ -232,7 +241,16 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
 
       // Eklenti yapısına göre status, success, cmid veya activityid dönebilir.
       if (res && (res.status === "success" || res.status === true || res.cmid || res.activityid || res.id)) {
-        if (onSaved) onSaved(res.cmid || res.activityid || res.id);
+        if (onSaved) {
+           onSaved({
+              id: res.cmid || Math.floor(Math.random() * 1000000),
+              instance: res.activityid || res.id || Math.floor(Math.random() * 1000000),
+              name: form.name,
+              modname: actType.moodleId,
+              section: sectionNum,
+              contents: []
+           });
+        }
         onClose();
       } else {
         // Hata vermiyordu ama eklemiyordu, çünkü yanıtı başarı sanıyorduk. Gerçek yanıtı ekrana basalım:
@@ -975,7 +993,8 @@ export default function TeacherCoursePage() {
           courseId={courseId}
           token={token}
           onClose={() => setActivityFormModal(null)}
-          onSaved={() => { 
+          onSaved={(newMod) => { 
+            if (newMod && typeof newMod === "object") setOptimisticMods(prev => [...prev, newMod]);
             setActivityFormModal(null); 
             showAlert("Aktivite eklendi, liste güncelleniyor...");
             setTimeout(() => fetchCourseData(), 1500);
@@ -1042,9 +1061,18 @@ export default function TeacherCoursePage() {
                 }
 
                 if (res && (res.status === "success" || res.status === true || res.cmid || res.activityid || res.id)) {
+                  const newMod = {
+                    id: res.cmid || Math.floor(Math.random() * 1000000),
+                    instance: res.activityid || res.id || Math.floor(Math.random() * 1000000),
+                    name: form.name || "Sınav",
+                    modname: "quiz",
+                    section: almsQuizActivity.sectionNum,
+                    contents: []
+                  };
+                  setOptimisticMods(prev => [...prev, newMod]);
                   setAlmsQuizActivity(null);
-                  fetchCourseData();
-                  showAlert("Sınav başarıyla oluşturuldu ve yayımlandı!");
+                  showAlert("Sınav başarıyla oluşturuldu, liste güncelleniyor...");
+                  setTimeout(() => fetchCourseData(), 1500);
                 } else {
                   throw new Error("Sınav kaydedilemedi: " + JSON.stringify(res));
                 }
