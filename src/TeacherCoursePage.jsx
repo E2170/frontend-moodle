@@ -641,10 +641,20 @@ export default function TeacherCoursePage() {
       const res = await moodlePost(token, "local_vueapi_add_activity", payload);
       if (res && res.exception) throw new Error(res.message || "API hatası.");
       
-      showAlert("Duyuru başarıyla eklendi ve tüm öğrencilere gösterilecek!");
+      const newMod = {
+         id: res?.cmid || Math.floor(Math.random() * 1000000),
+         instance: res?.activityid || res?.id || Math.floor(Math.random() * 1000000),
+         name: "Duyuru",
+         modname: "label",
+         section: 0,
+         contents: []
+      };
+      setOptimisticMods(prev => [...prev, newMod]);
+      
+      showAlert("Duyuru başarıyla eklendi, liste güncelleniyor!");
       setAnnouncementModalOpen(false);
       setAnnouncementText("");
-      fetchCourseData();
+      setTimeout(() => fetchCourseData(), 1500);
     } catch (err) {
       showAlert("Duyuru eklenirken hata: " + err.message);
     } finally {
@@ -683,7 +693,7 @@ export default function TeacherCoursePage() {
     
     // Optimistic eklenenleri göster
     const secNum = sec.section !== undefined ? sec.section : parseInt(sec.id?.toString().replace("default-", "") || "0", 10);
-    const pendingToAdd = optimisticMods.filter(om => Number(om.section) === Number(secNum));
+    const pendingToAdd = optimisticMods.filter(om => Number(om.section) === Number(secNum) && !deletedIds.includes(om.id));
     
     pendingToAdd.forEach(pm => {
        // Eğer gerçek API yanıtı zaten bu isimde ve tipte bir modül barındırıyorsa ekleme (cache düzelmiş demektir)
