@@ -103,30 +103,7 @@ export default function CourseDetail() {
         if (Array.isArray(contentsData)) {
           const validSections = contentsData; 
           setSections(validSections);
-          
-          let targetSection = null;
-          let targetMod = null;
-          
-          if (initialCmid) {
-             for (const sec of validSections) {
-                if (sec.modules) {
-                   const mod = sec.modules.find(m => String(m.id) === String(initialCmid) || String(m.instance) === String(initialCmid));
-                   if (mod) {
-                      targetSection = sec;
-                      targetMod = mod;
-                      break;
-                   }
-                }
-             }
-          }
-
-          if (targetSection) {
-             setActiveSection(targetSection);
-             if (targetMod) {
-                 setSelectedActivity(targetMod);
-             }
-          }
-          if (validSections.length > 0 && !targetMod) {
+          if (validSections.length > 0) {
             setActiveSection((prev) => {
               if (prev) {
                 const updated = validSections.find((s) => s.id === prev.id);

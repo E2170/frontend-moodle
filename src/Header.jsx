@@ -300,7 +300,7 @@ export default function Header() {
         if (finalUrl.startsWith("/")) {
             finalUrl = "https://moodle.argeyazilim.tr" + finalUrl;
         }
-        window.location.href = finalUrl;
+        window.location.assign(finalUrl);
     }
   };
 
