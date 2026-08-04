@@ -24,6 +24,7 @@ const TeacherFiles = React.lazy(() => import("./TeacherFiles"));
 const TeacherReports = React.lazy(() => import("./TeacherReports"));
 const TeacherCoursePage = React.lazy(() => import("./TeacherCoursePage"));
 const TeacherCourses = React.lazy(() => import("./TeacherCourses"));
+const SmartRedirect = React.lazy(() => import("./SmartRedirect"));
 
 const AuthRoute = () => {
   const { user } = useAuth();
@@ -64,6 +65,9 @@ function App() {
                 <Route path="/teacher-courses" element={<TeacherCourses />} />
                 <Route path="/teacher-course/:courseId" element={<TeacherCoursePage />} />
               </Route>
+
+              {/* Ortak Rotalar (Tüm kullanıcılar erişebilir) */}
+              <Route path="/smart-redirect" element={<SmartRedirect />} />
 
               {/* /dashboard dizini öğrenci panelini gösterir */}
               <Route element={<ProtectedRoute allowedRole="student" />}>

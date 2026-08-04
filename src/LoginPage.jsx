@@ -61,22 +61,25 @@ export default function LoginPage() {
           try {
             // Gerçek web oturumu almak için arkaplanda web login yap
             try {
-              const loginPageRes = await fetch(`${apiBase}/login/index.php`);
-              const loginHtml = await loginPageRes.text();
-              const tokenMatch = loginHtml.match(/name="logintoken" value="([^"]+)"/);
-              if (tokenMatch) {
-                const logintoken = tokenMatch[1];
-                const params = new URLSearchParams({ username, password, logintoken });
-                await fetch(`${apiBase}/login/index.php`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                  body: params.toString()
-                });
-                console.log("Arkaplan web girişi başarılı, gerçek oturum çerezi alındı.");
+              if (username && password) {
+                // Web login arka planda çalışsın, bitmesini (await) bekleyerek UI'ı bloklamayalım
+                fetch(`${apiBase}/login/index.php`)
+                  .then(async (res) => {
+                    const html = await res.text();
+                    const tokenMatch = html.match(/name="logintoken" value="([^"]+)"/);
+                    if (tokenMatch) {
+                      const logintoken = tokenMatch[1];
+                      const params = new URLSearchParams({ username, password, logintoken });
+                      fetch(`${apiBase}/login/index.php`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: params.toString()
+                      }).catch(() => {});
+                    }
+                  })
+                  .catch(e => console.error("Web girişi sırasında hata:", e));
               }
-            } catch (webLoginErr) {
-              console.error("Web girişi sırasında hata:", webLoginErr);
-            }
+            } catch (webLoginErr) {}
 
             // 1. Kullanıcının temel site bilgilerini al (userid tespiti için)
             const siteInfo = await moodlePost(data.token, "core_webservice_get_site_info");
@@ -92,18 +95,21 @@ export default function LoginPage() {
               const courses = await moodlePost(data.token, "core_enrol_get_users_courses", { userid: siteInfo.userid });
 
               if (Array.isArray(courses) && courses.length > 0) {
-                // Öğretmen olup olmadığını anlamak için, öğrencinin normalde erişemediği "Katılımcı Listesi" (core_enrol_get_enrolled_users) fonksiyonunu deneriz.
-                // İlk 10 dersi eşzamanlı olarak kontrol ediyoruz.
-                const coursesToCheck = courses.slice(0, 10);
-                const accessPromises = coursesToCheck.map(course => 
-                  moodlePost(data.token, "core_enrol_get_enrolled_users", { courseid: course.id })
-                  .catch(() => ({}))
-                );
+                // Sadece ilk 3 dersi kontrol ediyoruz ve Promise.any ile İLK başarılı yanıtta (eğitmen olduğu kanıtlanırsa) anında geçiş yapıyoruz.
+                const coursesToCheck = courses.slice(0, 3);
                 
-                const accessResults = await Promise.all(accessPromises);
-                
-                // Eğer dönen sonuç bir Array ise (yani hata mesajı/exception değilse), bu kişi o dersin katılımcı listesini görebiliyordur (Eğitmendir).
-                isTeacher = accessResults.some(result => Array.isArray(result) && result.length > 0);
+                const checkCourseTeacher = async (courseId) => {
+                  const res = await moodlePost(data.token, "core_enrol_get_enrolled_users", { courseid: courseId });
+                  if (Array.isArray(res) && res.length > 0) return true;
+                  throw new Error("Eğitmen değil");
+                };
+
+                try {
+                  await Promise.any(coursesToCheck.map(course => checkCourseTeacher(course.id)));
+                  isTeacher = true;
+                } catch(e) {
+                  isTeacher = false;
+                }
               }
             }
 

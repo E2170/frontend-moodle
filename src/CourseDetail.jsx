@@ -110,7 +110,7 @@ export default function CourseDetail() {
           if (initialCmid) {
              for (const sec of validSections) {
                 if (sec.modules) {
-                   const mod = sec.modules.find(m => String(m.id) === String(initialCmid));
+                   const mod = sec.modules.find(m => String(m.id) === String(initialCmid) || String(m.instance) === String(initialCmid));
                    if (mod) {
                       targetSection = sec;
                       targetMod = mod;
@@ -122,10 +122,11 @@ export default function CourseDetail() {
 
           if (targetSection) {
              setActiveSection(targetSection);
-             if (targetMod && (targetMod.uservisible !== false)) {
+             if (targetMod) {
                  setSelectedActivity(targetMod);
              }
-          } else if (validSections.length > 0) {
+          }
+          if (validSections.length > 0 && !targetMod) {
             setActiveSection((prev) => {
               if (prev) {
                 const updated = validSections.find((s) => s.id === prev.id);
@@ -165,6 +166,7 @@ export default function CourseDetail() {
         ) {
           const detailedCourse = courseFieldData.courses[0];
           if (
+            detailedCourse.contacts &&
             Array.isArray(detailedCourse.contacts) &&
             detailedCourse.contacts.length > 0
           ) {
@@ -190,6 +192,28 @@ export default function CourseDetail() {
     };
     loadData();
   }, [fetchCourseDetails]);
+
+  // URL'den gelen cmid değiştiğinde aktiviteyi otomatik aç
+  useEffect(() => {
+    if (sections.length > 0 && initialCmid) {
+      let targetMod = null;
+      let targetSec = null;
+      for (const sec of sections) {
+        if (sec.modules) {
+          const mod = sec.modules.find(m => String(m.id) === String(initialCmid) || String(m.instance) === String(initialCmid));
+          if (mod) {
+            targetMod = mod;
+            targetSec = sec;
+            break;
+          }
+        }
+      }
+      if (targetMod) {
+        setActiveSection(targetSec);
+        setSelectedActivity(targetMod);
+      }
+    }
+  }, [initialCmid, sections]);
 
   
 

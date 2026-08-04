@@ -259,9 +259,17 @@ export default function Header() {
         } catch (e) { /* ignore parse error */ }
     }
 
-    if (!cmid && notif.contexturl && notif.contexturl.includes("?id=")) {
+    let cleanContextUrl = notif.contexturl ? notif.contexturl.replace(/&amp;/g, '&') : null;
+
+    if (cleanContextUrl) {
         try {
-            cmid = new URL(notif.contexturl).searchParams.get("id");
+            const urlObj = new URL(cleanContextUrl, "http://dummy.com");
+            if (!cmid) {
+                cmid = urlObj.searchParams.get("id") || urlObj.searchParams.get("cmid");
+            }
+            if (!courseid) {
+                courseid = urlObj.searchParams.get("courseId") || urlObj.searchParams.get("courseid");
+            }
         } catch(e) {}
     }
 
@@ -280,15 +288,19 @@ export default function Header() {
     if (courseid) {
         let cmidQuery = cmid ? `?cmid=${cmid}` : "";
         if (userRole === "teacher") {
-            navigate(`/teacher/course/${courseid}${cmidQuery}`);
+            navigate(`/teacher-course/${courseid}${cmidQuery}`);
         } else {
             navigate(`/course/${courseid}${cmidQuery}`);
         }
         return;
     }
     
-    if (notif.contexturl) {
-        window.location.assign(notif.contexturl);
+    if (cleanContextUrl) {
+        let finalUrl = cleanContextUrl;
+        if (finalUrl.startsWith("/")) {
+            finalUrl = "https://moodle.argeyazilim.tr" + finalUrl;
+        }
+        window.location.href = finalUrl;
     }
   };
 
@@ -474,8 +486,8 @@ export default function Header() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="font-bold text-[13px] text-gray-800 mb-1">{notif.subject}</div>
-                            <div className="text-[12px] text-gray-600 mb-1 leading-relaxed line-clamp-2" dangerouslySetInnerHTML={{ __html: notif.smallmessage || notif.fullmessagehtml || notif.text }} />
-                            <div className="text-[11px] text-gray-400 font-medium">{notif.timecreatedpretty}</div>
+                            <div className="text-[12px] text-gray-600 mb-1 leading-relaxed line-clamp-2 pointer-events-none" dangerouslySetInnerHTML={{ __html: notif.smallmessage || notif.fullmessagehtml || notif.text }} />
+                            <div className="text-[11px] text-gray-400 font-medium pointer-events-none">{notif.timecreatedpretty}</div>
                           </div>
                         </div>
                       ))}

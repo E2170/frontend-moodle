@@ -500,6 +500,7 @@ export default function TeacherCoursePage() {
   const [almsQuizActivity, setAlmsQuizActivity] = useState(null); 
 
   const [youtubeModalOpen, setYoutubeModalOpen] = useState(null); // { sectionNum }
+  const [deletedIds, setDeletedIds] = useState([]);
 
   const handleSelectActivityType = (actType) => {
     setIsActivityPanelOpen(false);
@@ -638,7 +639,12 @@ export default function TeacherCoursePage() {
   ];
 
   const defaultWeeks = Array.from({ length: 16 }, (_, i) => ({ id: `default-${i}`, name: `HAFTA ${i + 1}`, modules: [] }));
-  const displaySections = sections.length > 0 ? sections : defaultWeeks;
+  const displaySections = (sections.length > 0 ? sections : defaultWeeks).map(sec => {
+    if (sec.modules) {
+      return { ...sec, modules: sec.modules.filter(m => !deletedIds.includes(m.id)) };
+    }
+    return sec;
+  });
   const activeSection = displaySections.find(s => s.id === activeSectionId) || displaySections[0];
 
   const announcements = sections[0]?.modules?.filter(m => m.modname === 'label' && m.name === 'Duyuru') || [];
@@ -687,8 +693,23 @@ export default function TeacherCoursePage() {
         throw new Error(deleteRes.message || "Aktivite silinirken erişim yetkisi hatası oluştu.");
       }
 
+      // Optimistic UI Update: Ekrandan anında sil
+      setDeletedIds(prev => [...prev, mod.id]);
+      
+      setSections(prevSections => prevSections.map(sec => {
+        if (sec.modules) {
+          return { ...sec, modules: sec.modules.filter(m => m.id !== mod.id) };
+        }
+        return sec;
+      }));
+      
+      // Eğer ekranda açık olan aktivite silindiyse, onu kapat
+      if (selectedModuleForView && selectedModuleForView.id === mod.id) {
+        setSelectedModuleForView(null);
+      }
+
       showAlert("Aktivite başarıyla silindi.");
-      fetchCourseData(); // Sayfayı yenile
+      fetchCourseData(); // Sayfayı arka planda yine de yenile
     } catch (e) {
       showAlert("Hata: " + e.message);
     }
