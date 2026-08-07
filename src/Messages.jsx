@@ -298,10 +298,10 @@ export default function Messages() {
         {loading ? (
           <div className="text-center py-10 text-gray-500">{t.loadingData}</div>
         ) : (
-          <div className="bg-white border border-[#e5e7eb] rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] flex h-[750px] overflow-hidden font-sans">
+          <div className="bg-white border border-[#e5e7eb] rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] flex flex-col md:flex-row h-[750px] overflow-hidden font-sans relative">
             
             {/* EN SOL: KONUŞMA LİSTESİ (Left Pane) */}
-            <div className="w-[320px] shrink-0 border-r border-[#e5e7eb] flex flex-col bg-[#fcfcfc]">
+            <div className={`w-full md:w-[320px] shrink-0 md:border-r border-[#e5e7eb] flex-col bg-[#fcfcfc] ${activeConv ? 'hidden md:flex' : 'flex'}`}>
               <div className="p-5 border-b border-[#e5e7eb] bg-white flex items-center h-[80px]">
                 <h3 className="font-bold text-gray-800 text-[18px] tracking-tight">Mesajlar</h3>
               </div>
@@ -368,10 +368,16 @@ export default function Messages() {
 
             {/* ORTA: SOHBET ALANI (Middle Pane) */}
             {activeConv ? (
-              <div className={`flex flex-col flex-1 transition-all duration-300 ${showProfile ? 'border-r border-gray-100' : ''} bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-white`}>
+              <div className={`flex flex-col flex-1 transition-all duration-300 ${showProfile ? 'md:border-r border-gray-100' : ''} bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-white ${!activeConv ? 'hidden md:flex' : 'flex'}`}>
                 {/* Chat Header */}
-                <div className="px-6 py-4 flex justify-between items-center bg-white/95 backdrop-blur-md border-b border-gray-100 h-[80px] shadow-sm z-10 sticky top-0">
-                  <div className="flex items-center gap-4">
+                <div className="px-4 md:px-6 py-4 flex justify-between items-center bg-white/95 backdrop-blur-md border-b border-gray-100 h-[80px] shadow-sm z-10 sticky top-0">
+                  <div className="flex items-center gap-2 md:gap-4">
+                    <button 
+                      onClick={() => setActiveConv(null)} 
+                      className="md:hidden p-2 text-gray-500 hover:text-gray-700 bg-gray-50 rounded-full transition-colors shrink-0"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
                     <div 
                       className="flex items-center gap-3 cursor-pointer group"
                       onClick={() => setShowProfile(!showProfile)}
@@ -468,7 +474,7 @@ export default function Messages() {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col flex-1 items-center justify-center bg-[#fbfcfd] border-l border-gray-100">
+              <div className="hidden md:flex flex-col flex-1 items-center justify-center bg-[#fbfcfd] border-l border-gray-100">
                 <div className="w-[120px] h-[120px] bg-[#f1f3f5] rounded-full flex items-center justify-center mb-6">
                   <svg className="w-16 h-16 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
                 </div>
@@ -479,7 +485,7 @@ export default function Messages() {
 
             {/* SAĞ KISIM: PROFİL BİLGİLERİ (Right Pane) */}
             {(activeConv && showProfile) && (
-              <div className="w-[320px] shrink-0 bg-white flex flex-col h-full border-l border-gray-100 animate-[fadeIn_0.2s_ease-out]">
+              <div className="absolute md:relative right-0 top-0 w-full md:w-[320px] shrink-0 bg-white flex flex-col h-full md:border-l border-gray-100 animate-[fadeIn_0.2s_ease-out] z-20 md:z-auto shadow-xl md:shadow-none">
                 <div className="p-5 flex justify-end h-[80px] items-center">
                   <button onClick={() => setShowProfile(false)} className="text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 p-2 rounded-full transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>

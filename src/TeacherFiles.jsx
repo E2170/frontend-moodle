@@ -34,11 +34,23 @@ export default function TeacherFiles() {
       const userData = await moodlePost(token, "core_webservice_get_site_info");
 
       if (userData && userData.userid) {
+        // Kullanıcı adını sakla (dosya yüklenirken kullanılır)
+        if (userData.fullname) localStorage.setItem("moodle_fullname", userData.fullname);
+
         try {
           // 1. Önce hocanın derslerini al
           const courses = await moodlePost(token, "core_enrol_get_users_courses", { userid: userData.userid });
           
           let allFiles = [];
+
+          // localStorage'dan kalıcı kaydedilmiş dosyaları yükle
+          try {
+            const saved = JSON.parse(localStorage.getItem("savedFiles") || "[]");
+            allFiles = [...saved];
+          } catch(e) { /* ignore */ }
+
+          // İlk başlangıçta saved dosyaları hemen göster
+          setFiles(allFiles);
           
           if (Array.isArray(courses)) {
              setCourses(courses);
@@ -86,10 +98,23 @@ export default function TeacherFiles() {
                     }
                  });
                  
-                 setFiles(prev => {
-                     const newFiles = [...prev, ...chunkFiles];
-                     newFiles.sort((a,b) => b.id.localeCompare(a.id));
-                     return newFiles;
+                 allFiles = [...allFiles, ...chunkFiles];
+
+                 // localStorage'dan kaydedilmiş dosyalarla çakışmayı önle (aynı isimli dosyayı ikinci kez ekleme)
+                 setFiles(() => {
+                     const seenNames = new Set();
+                     const merged = allFiles.filter(f => {
+                       if (seenNames.has(f.name)) return false;
+                       seenNames.add(f.name);
+                       return true;
+                     });
+                     merged.sort((a, b) => {
+                       const aTime = a.savedAt || 0;
+                       const bTime = b.savedAt || 0;
+                       if (bTime !== aTime) return bTime - aTime;
+                       return b.id.localeCompare(a.id);
+                     });
+                     return merged;
                  });
                  
                  processedCount += chunk.length;
@@ -400,6 +425,24 @@ function GlobalUploadModal({ onClose, courses, onSaved }) {
 
       if (!uploadData.status) throw new Error(uploadData.message || "Dosya yüklenemedi.");
       
+      // Dosyayı kalıcı olarak sakla (aktivite silinse bile Dosyalarım'da kalsın)
+      try {
+        const saved = JSON.parse(localStorage.getItem("savedFiles") || "[]");
+        const fileRecord = {
+          id: "saved_" + (uploadData.cmid || Date.now()) + "_" + file.name,
+          name: file.name,
+          url: uploadData.fileurl || "",
+          ext: "." + file.name.split(".").pop().toLowerCase(),
+          date: new Date().toLocaleString("tr-TR"),
+          size: (file.size / 1024).toFixed(2) + " KB",
+          course: courses.find(c => String(c.id) === String(selectedCourse))?.fullname || selectedCourse,
+          uploader: localStorage.getItem("moodle_fullname") || "Sistem",
+          savedAt: Date.now()
+        };
+        saved.unshift(fileRecord);
+        localStorage.setItem("savedFiles", JSON.stringify(saved));
+      } catch(e) { console.warn("Dosya kaydedilemedi:", e); }
+
       if (onSaved) onSaved();
     } catch (e) {
       setError("Hata: " + e.message);

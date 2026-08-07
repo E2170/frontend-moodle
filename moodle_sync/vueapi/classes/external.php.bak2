@@ -27,13 +27,13 @@ class external extends external_api {
             'grademethod' => 1,
             'decimalpoints' => 2,
             'questiondecimalpoints' => -1,
-            'reviewattempt' => 0,
-            'reviewcorrectness' => 0,
-            'reviewmarks' => 0,
-            'reviewspecificfeedback' => 0,
-            'reviewgeneralfeedback' => 0,
-            'reviewrightanswer' => 0,
-            'reviewoverallfeedback' => 0,
+            'reviewattempt' => 69904,
+            'reviewcorrectness' => 69904,
+            'reviewmarks' => 69904,
+            'reviewspecificfeedback' => 69904,
+            'reviewgeneralfeedback' => 69904,
+            'reviewrightanswer' => 69904,
+            'reviewoverallfeedback' => 69904,
             'questionsperpage' => 1,
             'navmethod' => 'free',
             'shuffleanswers' => 1,
@@ -69,7 +69,7 @@ class external extends external_api {
                 'maxfiles' => new external_value(PARAM_INT, 'Maksimum Dosya Sayisi', VALUE_DEFAULT, 0),
                 'externalurl' => new external_value(PARAM_RAW, 'Harici URL (or. YouTube)', VALUE_DEFAULT, ''),
                 'record' => new external_value(PARAM_INT, 'Kayit (BBB)', VALUE_DEFAULT, 0),
-                'choiceoptions' => new external_value(PARAM_RAW, 'Anket secenekleri (virgulle ayrilmis)', VALUE_DEFAULT, '')
+                'choiceoptions' => new external_value(PARAM_RAW, 'Anket secenekleri', VALUE_DEFAULT, '')
             )
         );
     }
@@ -89,7 +89,7 @@ class external extends external_api {
             'maxbytes' => $maxbytes,
             'maxfiles' => $maxfiles,
             'externalurl' => $externalurl,
-            'record' => $record,
+              'record' => $record,
             'choiceoptions' => $choiceoptions
         ));
 
@@ -146,11 +146,9 @@ class external extends external_api {
         $instance = new \stdClass();
         $instance->course = $course->id;
         $instance->name = $params['name'];
-        
         $desc_parts = explode('|||CHOICEOPTIONS|||', $params['description']);
         $params['description'] = $desc_parts[0];
         $choiceoptions_str = isset($desc_parts[1]) ? $desc_parts[1] : '';
-        
         $instance->intro = $params['description'];
         $instance->introformat = FORMAT_HTML;
         $instance->coursemodule = $cmid;
@@ -189,23 +187,6 @@ class external extends external_api {
             $defaults['timeopen'] = $params['timeopen'];
             $defaults['timeclose'] = $params['timeclose'];
             
-            // Ayarları description içinden çıkar (Örn: <!-- SETTINGS:timelimit=3600;attempts=1 -->)
-            if (preg_match('/<!-- SETTINGS:(.*?) -->/', $instance->intro, $matches)) {
-                $settings_str = $matches[1];
-                $settings_pairs = explode(';', $settings_str);
-                foreach ($settings_pairs as $pair) {
-                    $kv = explode('=', $pair);
-                    if (count($kv) == 2) {
-                        $k = trim($kv[0]);
-                        $v = trim($kv[1]);
-                        if ($k === 'timelimit') $defaults['timelimit'] = (int)$v;
-                        if ($k === 'attempts') $defaults['attempts'] = (int)$v;
-                    }
-                }
-                // Ayar stringini intro'dan temizle
-                $instance->intro = preg_replace('/<!-- SETTINGS:.*? -->/', '', $instance->intro);
-            }
-            
             foreach ($defaults as $key => $value) {
                 if (!isset($instance->$key)) {
                     $instance->$key = $value;
@@ -218,7 +199,6 @@ class external extends external_api {
             $instance->record = $params['record']; // Enable recording based on payload
             $instance->recordings_preview = 1;
             $instance->recordings_deleted = 1;
-            $instance->notification = 1; // Send notification to enrolled users when created
         } elseif ($params['type'] === 'url') {
             $instance->externalurl = $params['externalurl'] ? $params['externalurl'] : 'https://varsayilan-adres.com'; 
             $instance->display = 0;
@@ -228,12 +208,10 @@ class external extends external_api {
             $instance->display = 0;
         } elseif ($params['type'] === 'choice') {
             $instance->option = array();
-            
-            // Seçenekler description içine "|||CHOICEOPTIONS|||" ile gömülüp parse edilir.
-            // $params['choiceoptions'] artık frontend tarafından gönderilmemektedir.
             $source = !empty($choiceoptions_str) ? $choiceoptions_str : ($params['choiceoptions'] ?? '');
             if (!empty($source)) {
-                $opts = explode("\n", $source);
+                $opts = explode("
+", $source);
                 foreach ($opts as $opt) {
                     if (trim($opt) !== '') {
                         $instance->option[] = trim($opt);
@@ -241,7 +219,7 @@ class external extends external_api {
                 }
             }
             if (empty($instance->option)) {
-                $instance->option = array('Evet', 'Hayır');
+                $instance->option = array('Evet', 'Hayir');
             }
         } elseif ($params['type'] === 'forum') {
             $instance->type = 'general';
@@ -260,35 +238,6 @@ class external extends external_api {
                 if ($params['type'] === 'bigbluebuttonbn') {
                     $DB->set_field('bigbluebuttonbn', 'record', $params['record'], array('id' => $instance->id));
                 }
-
-                // ---- Ödev için takvim olayını garantili oluştur ----
-                // assign_add_instance(null mform) bazı Moodle sürümlerinde takvim olayı
-                // oluşturmayabiliyor. Doğrudan calendar_event::create() ile garanti altına alıyoruz.
-                if ($params['type'] === 'assign' && $params['duedate'] > 0) {
-                    // Varsa daha önce oluşturulmuş assign 'due' olaylarını temizle (çakışmayı önle)
-                    $DB->delete_records('event', array(
-                        'modulename' => 'assign',
-                        'instance'   => $instance->id,
-                        'eventtype'  => 'due'
-                    ));
-
-                    $calevent = new \stdClass();
-                    $calevent->name         = $instance->name;
-                    $calevent->description  = '';
-                    $calevent->format       = FORMAT_HTML;
-                    $calevent->courseid     = $course->id;
-                    $calevent->groupid      = 0;
-                    $calevent->userid       = 0;          // course-level: tüm kayıtlılar görür
-                    $calevent->modulename   = 'assign';
-                    $calevent->instance     = $instance->id;
-                    $calevent->eventtype    = 'due';
-                    $calevent->timestart    = $params['duedate'];
-                    $calevent->timeduration = 0;
-                    $calevent->visible      = 1;
-                    $calevent->timemodified = time();
-                    \calendar_event::create($calevent, false);
-                }
-                // -------------------------------------------------------
 
                 $cm = get_coursemodule_from_id($params['type'], $cmid, $course->id, false, MUST_EXIST);
                 \core\event\course_module_created::create_from_cm($cm, $context)->trigger();
@@ -316,88 +265,6 @@ class external extends external_api {
                 'activityid' => new external_value(PARAM_INT, 'Aktivite ID', VALUE_OPTIONAL)
             )
         );
-    }
-
-    // --- ANKET SONUÇLARI ---
-
-    public static function get_choice_results_parameters() {
-        return new external_function_parameters(
-            array(
-                'choiceid' => new external_value(PARAM_INT, 'Choice aktivite ID', VALUE_REQUIRED)
-            )
-        );
-    }
-
-    public static function get_choice_results($choiceid) {
-        global $DB;
-
-        $params = self::validate_parameters(self::get_choice_results_parameters(), array('choiceid' => $choiceid));
-
-        $choice = $DB->get_record('choice', array('id' => $params['choiceid']), '*', MUST_EXIST);
-        $context = \context_course::instance($choice->course);
-        self::validate_context($context);
-        require_capability('moodle/course:manageactivities', $context);
-
-        // Seçenekleri çek
-        $options = $DB->get_records('choice_options', array('choiceid' => $params['choiceid']), 'id');
-
-        // Toplam cevap sayısı
-        $totalanswers = $DB->count_records('choice_answers', array('choiceid' => $params['choiceid']));
-
-        $result = array();
-        foreach ($options as $opt) {
-            $answers = $DB->get_records_sql(
-                'SELECT ca.id, ca.userid, u.firstname, u.lastname, u.email
-                 FROM {choice_answers} ca
-                 JOIN {user} u ON u.id = ca.userid
-                 WHERE ca.choiceid = :choiceid AND ca.optionid = :optionid',
-                array('choiceid' => $params['choiceid'], 'optionid' => $opt->id)
-            );
-
-            $userresponses = array();
-            foreach ($answers as $a) {
-                $userresponses[] = array(
-                    'userid'   => (int)$a->userid,
-                    'fullname' => trim($a->firstname . ' ' . $a->lastname),
-                );
-            }
-
-            $count = count($userresponses);
-            $pct   = $totalanswers > 0 ? round($count / $totalanswers * 100, 1) : 0;
-
-            $result[] = array(
-                'id'               => (int)$opt->id,
-                'text'             => $opt->text,
-                'numberofuser'     => $count,
-                'percentageamount' => $pct,
-                'userresponses'    => $userresponses,
-            );
-        }
-
-        return array(
-            'totalanswers' => (int)$totalanswers,
-            'options'      => $result,
-        );
-    }
-
-    public static function get_choice_results_returns() {
-        return new \core_external\external_single_structure(array(
-            'totalanswers' => new external_value(PARAM_INT, 'Toplam cevap sayisi'),
-            'options'      => new \core_external\external_multiple_structure(
-                new \core_external\external_single_structure(array(
-                    'id'               => new external_value(PARAM_INT, 'Secenek ID'),
-                    'text'             => new external_value(PARAM_TEXT, 'Secenek metni'),
-                    'numberofuser'     => new external_value(PARAM_INT, 'Cevap sayisi'),
-                    'percentageamount' => new external_value(PARAM_FLOAT, 'Yuzde'),
-                    'userresponses'    => new \core_external\external_multiple_structure(
-                        new \core_external\external_single_structure(array(
-                            'userid'   => new external_value(PARAM_INT, 'Kullanici ID'),
-                            'fullname' => new external_value(PARAM_TEXT, 'Ad Soyad'),
-                        ))
-                    ),
-                ))
-            ),
-        ));
     }
 
     // --- AKTIVITE SILME FONKSIYONLARI (YENI) ---
@@ -910,71 +777,6 @@ class external extends external_api {
     }
 
     public static function delete_question_returns() {
-        return new external_single_structure(
-            array(
-                'status' => new external_value(PARAM_BOOL, 'Status of the operation'),
-                'message' => new external_value(PARAM_TEXT, 'Response message')
-            )
-        );
-    }
-
-    public static function publish_quiz_parameters() {
-        return new external_function_parameters(
-            array(
-                'quizid' => new external_value(PARAM_INT, 'Quiz ID')
-            )
-        );
-    }
-
-    public static function publish_quiz($quizid) {
-        global $DB, $USER, $CFG;
-        require_once($CFG->libdir . '/gradelib.php');
-        
-        $params = self::validate_parameters(self::publish_quiz_parameters(), array('quizid' => $quizid));
-        $quiz = $DB->get_record('quiz', array('id' => $params['quizid']));
-        if (!$quiz) return array('status' => false, 'message' => 'Sınav bulunamadı.');
-
-        $quiz->reviewattempt = 69904;
-        $quiz->reviewcorrectness = 69904;
-        $quiz->reviewmarks = 69904;
-        $quiz->reviewspecificfeedback = 69904;
-        $quiz->reviewgeneralfeedback = 69904;
-        $quiz->reviewrightanswer = 69904;
-        $quiz->reviewoverallfeedback = 69904;
-        $DB->update_record('quiz', $quiz);
-        
-        // Unhide grade in gradebook
-        require_once($CFG->libdir . '/grade/grade_item.php');
-        $grade_item = \grade_item::fetch(array('itemtype'=>'mod', 'itemmodule'=>'quiz', 'iteminstance'=>$quiz->id, 'courseid'=>$quiz->course));
-        if ($grade_item) {
-            $grade_item->set_hidden(0);
-            $grade_item->update();
-        }
-
-        // Send notifications
-        $context = \context_course::instance($quiz->course);
-        $enrolled = get_enrolled_users($context);
-        foreach ($enrolled as $u) {
-            if ($u->id == $USER->id) continue;
-            $message = new \core\message\message();
-            $message->component = 'moodle';
-            $message->name = 'instantmessage';
-            $message->userfrom = $USER;
-            $message->userto = $u;
-            $message->subject = 'Sınav Sonuçları Açıklandı';
-            $message->fullmessage = "{$quiz->name} adlı sınavın sonuçları açıklanmıştır. Lütfen sisteme girip notunuzu kontrol edin.";
-            $message->fullmessageformat = FORMAT_MARKDOWN;
-            $message->fullmessagehtml = "<p><b>{$quiz->name}</b> adlı sınavın sonuçları açıklanmıştır. Lütfen sisteme girip notunuzu kontrol edin.</p>";
-            $message->smallmessage = "Sınav Sonuçları Açıklandı: {$quiz->name}";
-            $message->notification = 1;
-            $message->customdata = json_encode(['courseid' => $quiz->course]);
-            message_send($message);
-        }
-
-        return array('status' => true, 'message' => 'Sınav sonuçları başarıyla yayınlandı ve öğrencilere bildirim gönderildi.');
-    }
-
-    public static function publish_quiz_returns() {
         return new external_single_structure(
             array(
                 'status' => new external_value(PARAM_BOOL, 'Status of the operation'),

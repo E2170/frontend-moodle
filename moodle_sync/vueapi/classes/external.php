@@ -218,7 +218,6 @@ class external extends external_api {
             $instance->record = $params['record']; // Enable recording based on payload
             $instance->recordings_preview = 1;
             $instance->recordings_deleted = 1;
-            $instance->notification = 1; // Send notification to enrolled users when created
         } elseif ($params['type'] === 'url') {
             $instance->externalurl = $params['externalurl'] ? $params['externalurl'] : 'https://varsayilan-adres.com'; 
             $instance->display = 0;
@@ -260,35 +259,6 @@ class external extends external_api {
                 if ($params['type'] === 'bigbluebuttonbn') {
                     $DB->set_field('bigbluebuttonbn', 'record', $params['record'], array('id' => $instance->id));
                 }
-
-                // ---- Ödev için takvim olayını garantili oluştur ----
-                // assign_add_instance(null mform) bazı Moodle sürümlerinde takvim olayı
-                // oluşturmayabiliyor. Doğrudan calendar_event::create() ile garanti altına alıyoruz.
-                if ($params['type'] === 'assign' && $params['duedate'] > 0) {
-                    // Varsa daha önce oluşturulmuş assign 'due' olaylarını temizle (çakışmayı önle)
-                    $DB->delete_records('event', array(
-                        'modulename' => 'assign',
-                        'instance'   => $instance->id,
-                        'eventtype'  => 'due'
-                    ));
-
-                    $calevent = new \stdClass();
-                    $calevent->name         = $instance->name;
-                    $calevent->description  = '';
-                    $calevent->format       = FORMAT_HTML;
-                    $calevent->courseid     = $course->id;
-                    $calevent->groupid      = 0;
-                    $calevent->userid       = 0;          // course-level: tüm kayıtlılar görür
-                    $calevent->modulename   = 'assign';
-                    $calevent->instance     = $instance->id;
-                    $calevent->eventtype    = 'due';
-                    $calevent->timestart    = $params['duedate'];
-                    $calevent->timeduration = 0;
-                    $calevent->visible      = 1;
-                    $calevent->timemodified = time();
-                    \calendar_event::create($calevent, false);
-                }
-                // -------------------------------------------------------
 
                 $cm = get_coursemodule_from_id($params['type'], $cmid, $course->id, false, MUST_EXIST);
                 \core\event\course_module_created::create_from_cm($cm, $context)->trigger();

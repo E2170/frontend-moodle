@@ -186,6 +186,24 @@ function ActivityFormModal({ actType, sectionNum, courseId, token, onClose, onSa
 
         if (!uploadData.status) throw new Error(uploadData.message || "Dosya yüklenemedi.");
         
+        // Dosyayı "Dosyalarım" panelinde kalıcı olarak sakla (aktivite silinse bile)
+        try {
+          const saved = JSON.parse(localStorage.getItem("savedFiles") || "[]");
+          const fileRecord = {
+            id: "saved_" + (uploadData.cmid || Date.now()) + "_" + selectedFile.name,
+            name: selectedFile.name,
+            url: uploadData.fileurl || "",
+            ext: "." + selectedFile.name.split(".").pop().toLowerCase(),
+            date: new Date().toLocaleString("tr-TR"),
+            size: (selectedFile.size / 1024).toFixed(2) + " KB",
+            course: uploadData.coursename || courseId,
+            uploader: localStorage.getItem("moodle_fullname") || "Sistem",
+            savedAt: Date.now()
+          };
+          saved.unshift(fileRecord);
+          localStorage.setItem("savedFiles", JSON.stringify(saved));
+        } catch(e) { console.warn("Dosya kaydedilemedi:", e); }
+
         if (onSaved) {
            onSaved({
               id: uploadData.cmid || Math.floor(Math.random() * 1000000),
@@ -518,6 +536,7 @@ export default function TeacherCoursePage() {
   const [courseDetail, setCourseDetail] = useState({ fullname: "Ders Yükleniyor..." });
   const [sections, setSections] = useState([]);
   const [activeTab, setActiveTab] = useState("Ders İçeriği");
+  const [mobilePanel, setMobilePanel] = useState("content");
   const [activeSectionId, setActiveSectionId] = useState(null);
   const [selectedModuleForView, setSelectedModuleForView] = useState(null);
 
@@ -654,7 +673,7 @@ export default function TeacherCoursePage() {
       showAlert("Duyuru başarıyla eklendi, liste güncelleniyor!");
       setAnnouncementModalOpen(false);
       setAnnouncementText("");
-      setTimeout(() => fetchCourseData(), 1500);
+      fetchCourseData();
     } catch (err) {
       showAlert("Duyuru eklenirken hata: " + err.message);
     } finally {
@@ -676,13 +695,14 @@ export default function TeacherCoursePage() {
   ];
 
 
+  const optimisticKey = `optimisticMods_${courseId}`;
   const [optimisticMods, setOptimisticMods] = useState(() => {
-    try { return JSON.parse(sessionStorage.getItem("optimisticMods") || "[]"); } catch(e) { return []; }
+    try { return JSON.parse(sessionStorage.getItem(`optimisticMods_${courseId}`) || "[]"); } catch(e) { return []; }
   });
 
   useEffect(() => {
-    sessionStorage.setItem("optimisticMods", JSON.stringify(optimisticMods));
-  }, [optimisticMods]);
+    sessionStorage.setItem(optimisticKey, JSON.stringify(optimisticMods));
+  }, [optimisticMods, optimisticKey]);
 
   const defaultWeeks = Array.from({ length: 16 }, (_, i) => ({ id: `default-${i}`, name: `HAFTA ${i + 1}`, section: i, modules: [] }));
   
@@ -757,6 +777,9 @@ export default function TeacherCoursePage() {
       // Optimistic UI Update: Ekrandan anında sil
       setDeletedIds(prev => [...prev, mod.id]);
       
+      // Eğer optimistic olarak eklenmişse oradan da kaldır
+      setOptimisticMods(prev => prev.filter(m => m.id !== mod.id));
+
       setSections(prevSections => prevSections.map(sec => {
         if (sec.modules) {
           return { ...sec, modules: sec.modules.filter(m => m.id !== mod.id) };
@@ -807,14 +830,21 @@ export default function TeacherCoursePage() {
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden relative">
+        {/* MOBİL PANEL SEKMELERİ */}
+        <div className="lg:hidden flex bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm w-full shrink-0">
+          <button onClick={() => setMobilePanel("schedule")} className={`flex-1 py-3 text-[13px] font-semibold border-b-2 transition-colors ${mobilePanel === "schedule" ? "border-blue-600 text-blue-800" : "border-transparent text-gray-500"}`}>Müfredat</button>
+          <button onClick={() => setMobilePanel("content")} className={`flex-1 py-3 text-[13px] font-semibold border-b-2 transition-colors ${mobilePanel === "content" ? "border-blue-600 text-blue-800" : "border-transparent text-gray-500"}`}>İçerik</button>
+          <button onClick={() => setMobilePanel("info")} className={`flex-1 py-3 text-[13px] font-semibold border-b-2 transition-colors ${mobilePanel === "info" ? "border-blue-600 text-blue-800" : "border-transparent text-gray-500"}`}>Bilgi</button>
+        </div>
+
         {/* Sol Panel — Hafta listesi */}
-        <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
+        <aside className={`${mobilePanel === 'schedule' ? 'flex' : 'hidden'} lg:flex w-full lg:w-64 bg-white lg:border-r border-b lg:border-b-0 border-gray-200 flex-col shrink-0 lg:overflow-y-auto`}>
           <div className="p-3 text-xs font-bold text-gray-700 border-b border-gray-100 bg-gray-50">{t.courseSchedule}</div>
           <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
             {displaySections.map(sec => (
               <div key={sec.id}
-                onClick={() => { setActiveSectionId(sec.id); setSelectedModuleForView(null); }}
+                onClick={() => { setActiveSectionId(sec.id); setSelectedModuleForView(null); setMobilePanel("content"); }}
                 className={`p-3 flex items-center justify-between cursor-pointer border-l-4 transition-colors ${activeSectionId === sec.id ? "bg-blue-50 border-blue-600" : "hover:bg-gray-50 border-transparent"}`}>
                 <div className="flex items-center gap-2">
                   <span className={`text-sm ${activeSectionId === sec.id ? "text-blue-600" : "text-gray-300"}`}>📁</span>
@@ -833,7 +863,7 @@ export default function TeacherCoursePage() {
         </aside>
 
         {/* Ana İçerik */}
-        <main className="flex-1 flex flex-col bg-[#f4f6f9] overflow-hidden">
+        <main className={`${mobilePanel === 'content' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col bg-[#f4f6f9] lg:overflow-hidden`}>
           <div className="p-4 flex justify-between items-center bg-white border-b border-gray-200 shrink-0">
             <h2 className="text-sm font-extrabold text-gray-800 uppercase tracking-wide">
               {selectedModuleForView ? selectedModuleForView.name : (activeSection?.name || "Bölüm Seçiniz")}
@@ -927,7 +957,7 @@ export default function TeacherCoursePage() {
         </main>
 
         {/* Sağ Panel */}
-        <aside className="w-72 bg-white border-l border-gray-200 p-4 flex flex-col gap-4 shrink-0 overflow-y-auto">
+        <aside className={`${mobilePanel === 'info' ? 'flex' : 'hidden'} lg:flex w-full lg:w-72 bg-white lg:border-l border-gray-200 p-4 flex-col gap-4 shrink-0 lg:overflow-y-auto`}>
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-col items-center text-center">
             <div className="w-14 h-14 bg-gray-100 border border-gray-200 rounded-full flex items-center justify-center text-gray-400 text-2xl mb-3">👤</div>
             <div className="text-xs font-bold text-gray-800 uppercase tracking-wide mb-1">{userInfo.fullname}</div>
@@ -1007,7 +1037,7 @@ export default function TeacherCoursePage() {
             if (newMod && typeof newMod === "object") setOptimisticMods(prev => [...prev, newMod]);
             setActivityFormModal(null); 
             showAlert("Aktivite eklendi, liste güncelleniyor...");
-            setTimeout(() => fetchCourseData(), 1500);
+            fetchCourseData();
           }}
         />
       )}
@@ -1022,7 +1052,7 @@ export default function TeacherCoursePage() {
             if (newMod) setOptimisticMods(prev => [...prev, newMod]);
             setYoutubeModalOpen(null); 
             showAlert("YouTube videosu eklendi, liste güncelleniyor...");
-            setTimeout(() => fetchCourseData(), 1500); 
+            fetchCourseData();
           }}
         />
       )}
@@ -1082,7 +1112,7 @@ export default function TeacherCoursePage() {
                   setOptimisticMods(prev => [...prev, newMod]);
                   setAlmsQuizActivity(null);
                   showAlert("Sınav başarıyla oluşturuldu, liste güncelleniyor...");
-                  setTimeout(() => fetchCourseData(), 1500);
+                  fetchCourseData();
                 } else {
                   throw new Error("Sınav kaydedilemedi: " + JSON.stringify(res));
                 }

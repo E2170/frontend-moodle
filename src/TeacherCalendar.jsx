@@ -66,22 +66,79 @@ export default function TeacherCalendar() {
     try {
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth() + 1;
-      const eventsData = await moodlePost(token, "core_calendar_get_calendar_monthly_view", {
-        year: year,
-        month: month
-      });
 
-      if (eventsData && Array.isArray(eventsData.weeks)) {
-        let allEvents = [];
-        eventsData.weeks.forEach(week => {
-          week.days.forEach(day => {
-            if (day.events && day.events.length > 0) {
-              allEvents = [...allEvents, ...day.events];
-            }
-          });
+      // Görüntülenen ayın başı ve sonu (±15 gün tampon)
+      const monthStart = new Date(year, month - 1, 1);
+      const monthEnd   = new Date(year, month, 0, 23, 59, 59);
+      const timeSortFrom = Math.floor(monthStart.getTime() / 1000) - 15 * 86400;
+      const timeSortTo   = Math.floor(monthEnd.getTime()   / 1000) + 15 * 86400;
+
+      let allEvents = [];
+      const seenIds = new Set();
+      const addEvents = (evts) => {
+        (evts || []).forEach(e => {
+          if (e && e.id && !seenIds.has(e.id)) {
+            seenIds.add(e.id);
+            allEvents.push(e);
+          }
         });
-        setEvents(allEvents);
+      };
+
+      // 1) Aylık takvim görünümü (sınav, BBB vb.) — cache bypass
+      try {
+        const eventsData = await moodlePost(token, "core_calendar_get_calendar_monthly_view", {
+          year: year,
+          month: month
+        }, false);
+        if (eventsData && Array.isArray(eventsData.weeks)) {
+          eventsData.weeks.forEach(week => {
+            week.days.forEach(day => {
+              if (day.events && day.events.length > 0) addEvents(day.events);
+            });
+          });
+        }
+      } catch (e) {
+        console.warn("monthly_view hatası:", e);
       }
+
+      // 2) Action events — cache bypass
+      try {
+        const actionData = await moodlePost(token, "core_calendar_get_action_events_by_timesort", {
+          timesortfrom: timeSortFrom,
+          timesortto:   timeSortTo,
+          limitnum:     200
+        }, false);
+        addEvents(actionData?.events);
+      } catch (e) {
+        console.warn("action_events hatası:", e);
+      }
+
+      // 3) Ders bazlı takvim olayları — assign 'due' olayları öğretmene buradan gelir (cache bypass)
+      try {
+        const userInfo = await moodlePost(token, "core_webservice_get_site_info");
+        if (userInfo && userInfo.userid) {
+          const courses = await moodlePost(token, "core_enrol_get_users_courses", { userid: userInfo.userid });
+          if (Array.isArray(courses) && courses.length > 0) {
+            const courseParams = {};
+            courses.forEach((c, i) => {
+              courseParams[`events[courseids][${i}]`] = c.id;
+            });
+            courseParams["options[timestart]"] = timeSortFrom;
+            courseParams["options[timeend]"]   = timeSortTo;
+            courseParams["options[userevents]"] = 1;
+            courseParams["options[siteevents]"] = 1;
+            courseParams["options[ignorehidden]"] = 0;
+
+            const courseEventsData = await moodlePost(token, "core_calendar_get_calendar_events", courseParams, false);
+            addEvents(courseEventsData?.events);
+          }
+        }
+      } catch (e) {
+        console.warn("course_events hatası:", e);
+      }
+
+      console.log("[Takvim] Toplam olay:", allEvents.length, allEvents.map(e => `${e.modulename}:${e.name}:${e.eventtype}`));
+      setEvents(allEvents);
     } catch (error) {
       console.error("Takvim verileri entegrasyon hatası:", error);
     }
@@ -374,18 +431,23 @@ export default function TeacherCalendar() {
                           eventDate.getMonth() === day.fullDate.getMonth() &&
                           eventDate.getFullYear() === day.fullDate.getFullYear();
                         
-                        // Map moodle module name to our filter keys
-                        let filterKey = e.modulename;
+                        // Moodle modül adını filtre anahtarına çevir
+                        let filterKey;
                         if (['bigbluebuttonbn', 'zoom', 'perculus'].includes(e.modulename)) filterKey = 'sanalSinif';
+                        else if (e.modulename === 'assign') filterKey = 'odev';
+                        else if (e.modulename === 'quiz') filterKey = 'sinav';
+                        else if (e.modulename === 'forum') filterKey = 'forum';
+                        else filterKey = e.modulename;
                         
                         return isSameDay && filters[filterKey] !== false;
                       })
                       .map((e, eIdx) => {
                         const eventDate = new Date(e.timesort * 1000);
                         const startHour = eventDate.getHours();
-                        if (startHour < 8 || startHour > 23) return null; // out of visible bounds
                         const startMinutes = eventDate.getMinutes();
-                        const topPos = (startHour - 8) * 48 + (startMinutes / 60) * 48;
+                        // Görünür saat aralığı 08:00-23:00; bu aralık dışındakileri en üste/alta sabitle
+                        const clampedHour = Math.max(8, Math.min(23, startHour));
+                        const topPos = (clampedHour - 8) * 48 + (startHour === clampedHour ? (startMinutes / 60) * 48 : 0);
                         const bgColor = getEventColorClass(e.modulename);
                         
                         return (

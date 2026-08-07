@@ -261,35 +261,6 @@ class external extends external_api {
                     $DB->set_field('bigbluebuttonbn', 'record', $params['record'], array('id' => $instance->id));
                 }
 
-                // ---- Ödev için takvim olayını garantili oluştur ----
-                // assign_add_instance(null mform) bazı Moodle sürümlerinde takvim olayı
-                // oluşturmayabiliyor. Doğrudan calendar_event::create() ile garanti altına alıyoruz.
-                if ($params['type'] === 'assign' && $params['duedate'] > 0) {
-                    // Varsa daha önce oluşturulmuş assign 'due' olaylarını temizle (çakışmayı önle)
-                    $DB->delete_records('event', array(
-                        'modulename' => 'assign',
-                        'instance'   => $instance->id,
-                        'eventtype'  => 'due'
-                    ));
-
-                    $calevent = new \stdClass();
-                    $calevent->name         = $instance->name;
-                    $calevent->description  = '';
-                    $calevent->format       = FORMAT_HTML;
-                    $calevent->courseid     = $course->id;
-                    $calevent->groupid      = 0;
-                    $calevent->userid       = 0;          // course-level: tüm kayıtlılar görür
-                    $calevent->modulename   = 'assign';
-                    $calevent->instance     = $instance->id;
-                    $calevent->eventtype    = 'due';
-                    $calevent->timestart    = $params['duedate'];
-                    $calevent->timeduration = 0;
-                    $calevent->visible      = 1;
-                    $calevent->timemodified = time();
-                    \calendar_event::create($calevent, false);
-                }
-                // -------------------------------------------------------
-
                 $cm = get_coursemodule_from_id($params['type'], $cmid, $course->id, false, MUST_EXIST);
                 \core\event\course_module_created::create_from_cm($cm, $context)->trigger();
                 
@@ -927,9 +898,7 @@ class external extends external_api {
     }
 
     public static function publish_quiz($quizid) {
-        global $DB, $USER, $CFG;
-        require_once($CFG->libdir . '/gradelib.php');
-        
+        global $DB, $USER;
         $params = self::validate_parameters(self::publish_quiz_parameters(), array('quizid' => $quizid));
         $quiz = $DB->get_record('quiz', array('id' => $params['quizid']));
         if (!$quiz) return array('status' => false, 'message' => 'Sınav bulunamadı.');
@@ -943,17 +912,7 @@ class external extends external_api {
         $quiz->reviewoverallfeedback = 69904;
         $DB->update_record('quiz', $quiz);
         
-        // Unhide grade in gradebook
-        require_once($CFG->libdir . '/grade/grade_item.php');
-        $grade_item = \grade_item::fetch(array('itemtype'=>'mod', 'itemmodule'=>'quiz', 'iteminstance'=>$quiz->id, 'courseid'=>$quiz->course));
-        if ($grade_item) {
-            $grade_item->set_hidden(0);
-            $grade_item->update();
-        }
-
-        // Send notifications
-        $context = \context_course::instance($quiz->course);
-        $enrolled = get_enrolled_users($context);
+        $enrolled = enrol_get_course_users($quiz->course);
         foreach ($enrolled as $u) {
             if ($u->id == $USER->id) continue;
             $message = new \core\message\message();
@@ -967,7 +926,6 @@ class external extends external_api {
             $message->fullmessagehtml = "<p><b>{$quiz->name}</b> adlı sınavın sonuçları açıklanmıştır. Lütfen sisteme girip notunuzu kontrol edin.</p>";
             $message->smallmessage = "Sınav Sonuçları Açıklandı: {$quiz->name}";
             $message->notification = 1;
-            $message->customdata = json_encode(['courseid' => $quiz->course]);
             message_send($message);
         }
 

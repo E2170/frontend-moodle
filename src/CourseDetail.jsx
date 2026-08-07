@@ -23,6 +23,7 @@ export default function CourseDetail() {
   const [activeSection, setActiveSection] = useState(null);
   const [teacher, setTeacher] = useState(null);
   const [activeTab, setActiveTab] = useState("ders-icerigi");
+  const [mobilePanel, setMobilePanel] = useState("content");
   const [activityDates, setActivityDates] = useState({});
   const [activityGrades, setActivityGrades] = useState({});
   const [selectedActivity, setSelectedActivity] = useState(null);
@@ -282,9 +283,16 @@ export default function CourseDetail() {
       </div>
 
       {/* Ana İçerik Alanı */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden relative">
+        {/* MOBİL PANEL SEKMELERİ */}
+        <div className="lg:hidden flex bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm w-full shrink-0">
+          <button onClick={() => setMobilePanel("schedule")} className={`flex-1 py-3 text-[13px] font-semibold border-b-2 transition-colors ${mobilePanel === "schedule" ? "border-[#495057] text-[#495057]" : "border-transparent text-gray-500"}`}>Müfredat</button>
+          <button onClick={() => setMobilePanel("content")} className={`flex-1 py-3 text-[13px] font-semibold border-b-2 transition-colors ${mobilePanel === "content" ? "border-[#495057] text-[#495057]" : "border-transparent text-gray-500"}`}>İçerik</button>
+          <button onClick={() => setMobilePanel("info")} className={`flex-1 py-3 text-[13px] font-semibold border-b-2 transition-colors ${mobilePanel === "info" ? "border-[#495057] text-[#495057]" : "border-transparent text-gray-500"}`}>Bilgi</button>
+        </div>
+
         {/* SOL KOLON - Ders Programı */}
-        <div className="w-[380px] bg-white border-r border-gray-200 flex flex-col shrink-0 overflow-y-auto">
+        <div className={`${mobilePanel === 'schedule' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[380px] bg-white lg:border-r border-b lg:border-b-0 border-gray-200 flex-col shrink-0 lg:overflow-y-auto`}>
           {/* Başlık ve Tamamlama Özeti */}
           <div className="flex items-center justify-between p-4 border-b border-gray-100 sticky top-0 bg-white z-10 shadow-sm">
             <span className="text-[16px] text-[#495057] font-bold">{t.courseSchedule}</span>
@@ -310,6 +318,7 @@ export default function CourseDetail() {
                       onClick={() => {
                         setActiveSection(section);
                         setActiveTab("ders-icerigi");
+                        setMobilePanel("content");
                       }}
                       className={`flex items-center px-4 py-3 min-h-[50px] transition-colors ${
                         activeSection?.id === section.id && activeTab === "ders-icerigi"
@@ -350,9 +359,9 @@ export default function CourseDetail() {
         </div>
 
         {/* ORTA VE SAĞ ALAN - Scrollable */}
-        <div className="flex-1 bg-white flex overflow-y-auto">
+        <div className={`${mobilePanel === 'content' || mobilePanel === 'info' ? 'flex' : 'hidden'} lg:flex flex-1 bg-white flex-col lg:flex-row lg:overflow-y-auto`}>
           {/* ORTA İÇERİK */}
-          <div className="flex-1 p-6 flex flex-col border-r border-gray-100">
+          <div className={`${mobilePanel === 'content' ? 'flex' : 'hidden'} lg:flex flex-1 p-4 lg:p-6 flex-col lg:border-r border-b lg:border-b-0 border-gray-100`}>
             {/* Top Toolbar */}
             <div className="flex justify-between items-center mb-4">
               <button
@@ -508,7 +517,7 @@ export default function CourseDetail() {
           </div>
 
           {/* SAĞ KOLON */}
-          <div className="w-[300px] shrink-0 bg-white p-6 overflow-y-auto space-y-6">
+          <div className={`${mobilePanel === 'info' ? 'block' : 'hidden'} lg:block w-full lg:w-[300px] shrink-0 bg-white p-4 lg:p-6 lg:overflow-y-auto space-y-6`}>
             {/* Hoca Bilgisi Kartı */}
             <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
               <div className="flex flex-col items-center">
